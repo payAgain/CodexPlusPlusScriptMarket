@@ -211,7 +211,7 @@
       "id": "prompt-optimize",
       "name": "Prompt Optimize",
       "description": "在输入框旁调用外部 LLM 一键优化提示词，支持 OpenAI/Anthropic 兼容 API 与一键还原。",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "author": "Codex++ Community",
       "tags": [
         "prompt",
@@ -224,7 +224,7 @@
       ],
       "homepage": "https://github.com/BigPizzaV3/CodexPlusPlusScriptMarket",
       "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/prompt-optimize.js",
-      "sha256": "1993a9d5e3717b0d62edd9d1d9933ef2a1d0bd04cc122781032b8c7fc57a49b7"
+      "sha256": "f86b0a4a83e594f25cc9d624343fa3696a23ce409b32245b21eedc70568b1032"
     },
     {
       "id": "codex-native-matrix-selector",
