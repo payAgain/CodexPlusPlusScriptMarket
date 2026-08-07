@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-16T08:27:07Z",
+  "updated_at": "2026-07-26T14:30:31Z",
   "scripts": [
     {
       "id": "codex-context-used-meter",
@@ -21,8 +21,8 @@
     {
       "id": "hide-usage-alert",
       "name": "Hide Usage Alert",
-      "description": "隐藏额度提醒",
-      "version": "0.1.4",
+      "description": "隐藏额度提醒与顶栏获取 Plus 按钮",
+      "version": "0.1.5",
       "author": "0xTotoroX",
       "tags": [
         "usage",
@@ -32,7 +32,7 @@
       ],
       "homepage": "https://github.com/0xTotoroX/codex-hide-usage-alert",
       "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/hide-usage-alert.js",
-      "sha256": "29fb7eb5b44cda3281ddcaed5174746c02b0a8b9de461c49774bb3746a3cda7b"
+      "sha256": "c7e907e998bfc3d4153302fa84dfb0b1e4fa16d6e738db669713a84872f631d6"
     },
     {
       "id": "model-deck",
