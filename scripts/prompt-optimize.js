@@ -2,21 +2,26 @@
 @codex-plus-script
 name: Prompt Optimize
 description: Optimize the composer prompt with an external LLM; click ✨ to optimize, click again to restore.
-version: 1.0.2
+version: 1.0.3
 author: Codex++ Community
 */
 
 (() => {
-  const SCRIPT_VERSION = "1.0.2";
+  const SCRIPT_VERSION = "1.0.3";
+  // Keep the published script version separate from the locally loaded DOM
+  // owner. A cached legacy instance must not be able to remove this revision's
+  // button or its styles during a later reinjection.
+  const INSTANCE_REVISION = "v1-0-3-anchor";
+  const OWNER_TOKEN = "v1-0-3-anchor";
   const API_KEY = "__codexPlusPromptOptimize";
   const MARKET_ID = "prompt-optimize";
   const BRIDGE_KEY = "__codexSessionDeleteBridge";
   const BRIDGE_PATH = "/llm-proxy";
-  const STYLE_ID = "codex-plus-prompt-optimize-style";
-  const BUTTON_ATTR = "data-codex-prompt-optimize";
-  const PANEL_ATTR = "data-codex-prompt-optimize-panel";
-  const TOAST_ATTR = "data-codex-prompt-optimize-toast";
-  const FLOAT_HOST_ATTR = "data-codex-prompt-optimize-float";
+  const STYLE_ID = `codex-plus-prompt-optimize-style-${OWNER_TOKEN}`;
+  const BUTTON_ATTR = `data-codex-prompt-optimize-${OWNER_TOKEN}`;
+  const PANEL_ATTR = `data-codex-prompt-optimize-panel-${OWNER_TOKEN}`;
+  const TOAST_ATTR = `data-codex-prompt-optimize-toast-${OWNER_TOKEN}`;
+  const FLOAT_HOST_ATTR = `data-codex-prompt-optimize-float-${OWNER_TOKEN}`;
   const SETTINGS_KEY = "codexPlusPromptOptimize.settings.v1";
   const DRAFT_THREAD_ID = "__draft__";
   const POLL_MS = 1500;
@@ -43,6 +48,28 @@ author: Codex++ Community
   const FOLDER_OR_PATH_RE = /文件夹|目录|folder|workspace|working directory|cwd|\\[a-z]|\/[a-z]|[a-z]:\\/i;
 
   const previous = window[API_KEY];
+  // A loaded script can be evaluated more than once by Codex++ without an
+  // actual route change. Reuse the already healthy instance so reinjection
+  // does not remove/reinsert the ✨ control and shift the action row.
+  if (previous && typeof previous.ensure === "function" && previous.instanceRevision === INSTANCE_REVISION) {
+    try {
+      previous.ensure();
+    } catch (_) {
+      /* ignore */
+    }
+    return;
+  }
+  // Codex++ can re-inject user scripts while a request is in flight. Keep the
+  // active instance alive so that reload does not turn a successful request
+  // into the misleading "已取消本次优化" result.
+  if (previous && typeof previous.isOptimizing === "function" && previous.isOptimizing()) {
+    try {
+      previous.ensure?.();
+    } catch (_) {
+      /* ignore */
+    }
+    return;
+  }
   if (previous && typeof previous.destroy === "function") {
     try {
       previous.destroy();
@@ -90,12 +117,13 @@ author: Codex++ Community
     anthropic: "https://api.anthropic.com",
   };
 
-  /** @type {{observer: MutationObserver|null, pollId: number, mutationTimer: number, toastTimer: number, inputListeners: Map<HTMLElement, EventListener>, disposed: boolean}} */
+  /** @type {{observer: MutationObserver|null, pollId: number, mutationTimer: number, toastTimer: number, resizeHandler: EventListener|null, inputListeners: Map<HTMLElement, EventListener>, disposed: boolean}} */
   const runtime = {
     observer: null,
     pollId: 0,
     mutationTimer: 0,
     toastTimer: 0,
+    resizeHandler: null,
     inputListeners: new Map(),
     disposed: false,
     loading: false,
@@ -991,8 +1019,11 @@ author: Codex++ Community
     if (host instanceof HTMLElement && host.isConnected) return host;
     host = document.createElement("div");
     host.setAttribute(FLOAT_HOST_ATTR, "true");
+    host.dataset.owner = OWNER_TOKEN;
     host.style.cssText = [
       "position:fixed",
+      "left:auto",
+      "top:auto",
       "right:18px",
       "bottom:18px",
       "z-index:2147482990",
@@ -1005,10 +1036,41 @@ author: Codex++ Community
     return host;
   }
 
-  function removeFloatingHostIfEmpty() {
-    const host = document.querySelector(`[${FLOAT_HOST_ATTR}]`);
-    if (!(host instanceof HTMLElement)) return;
-    if (!host.querySelector(`[${BUTTON_ATTR}]`)) host.remove();
+  function placeButtonInFallbackHost(button) {
+    const host = ensureFloatingHost();
+    host.style.left = "auto";
+    host.style.top = "auto";
+    host.style.right = "18px";
+    host.style.bottom = "18px";
+    button.style.margin = "";
+    button.dataset.placement = "float";
+    if (button.parentElement !== host) host.appendChild(button);
+    return host;
+  }
+
+  function anchorButtonToModel(button, modelItem, strategy) {
+    if (!(button instanceof HTMLElement) || !(modelItem instanceof HTMLElement)) return false;
+    const modelRect = modelItem.getBoundingClientRect();
+    if (!(modelRect.width > 0 && modelRect.height > 0)) return false;
+
+    const host = ensureFloatingHost();
+    // Keep ✨ beside the model control without making it a flex item. Inserting
+    // it into the action row used to squeeze the row and make the model chip
+    // visibly jump whenever the composer was reconciled.
+    button.style.margin = "0";
+    if (button.parentElement !== host) host.appendChild(button);
+    const buttonRect = button.getBoundingClientRect();
+    const width = Math.max(1, Math.round(buttonRect.width || 28));
+    const height = Math.max(1, Math.round(buttonRect.height || 28));
+    const left = Math.round(modelRect.left - width - 2);
+    if (left < 4) return false;
+
+    host.style.left = `${left}px`;
+    host.style.top = `${Math.round(modelRect.top + (modelRect.height - height) / 2)}px`;
+    host.style.right = "auto";
+    host.style.bottom = "auto";
+    button.dataset.placement = `${strategy || "model"}-anchor`;
+    return true;
   }
 
   function findComposerShell(footer) {
@@ -1268,11 +1330,12 @@ author: Codex++ Community
 
   function installStyle() {
     const existing = document.getElementById(STYLE_ID);
-    if (existing?.dataset.version === SCRIPT_VERSION) return;
+    if (existing?.dataset.owner === OWNER_TOKEN) return;
     existing?.remove();
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.dataset.version = SCRIPT_VERSION;
+    style.dataset.owner = OWNER_TOKEN;
     style.textContent = `
       [${BUTTON_ATTR}] {
         display: inline-flex;
@@ -1309,13 +1372,13 @@ author: Codex++ Community
       }
       [${BUTTON_ATTR}][data-state="loading"] .cpo-icon {
         display: inline-block;
-        animation: cpo-spin 0.9s linear infinite;
+        animation: cpo-spin-${OWNER_TOKEN} 0.9s linear infinite;
       }
       [${BUTTON_ATTR}] .cpo-icon {
         display: inline-block;
         transform-origin: center;
       }
-      @keyframes cpo-spin {
+      @keyframes cpo-spin-${OWNER_TOKEN} {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
       }
@@ -1499,6 +1562,7 @@ author: Codex++ Community
     button.type = "button";
     button.setAttribute(BUTTON_ATTR, "true");
     button.dataset.version = SCRIPT_VERSION;
+    button.dataset.owner = OWNER_TOKEN;
     button.innerHTML = `<span class="cpo-icon" aria-hidden="true">✨</span>`;
     button.addEventListener("click", onButtonClick);
     button.addEventListener("contextmenu", onButtonContextMenu);
@@ -1535,50 +1599,16 @@ author: Codex++ Community
   function ensureSparkleButton() {
     if (runtime.disposed) return;
     let button = document.querySelector(`[${BUTTON_ATTR}]`);
-    if (
-      button instanceof HTMLElement &&
-      button.dataset.version === SCRIPT_VERSION &&
-      button.dataset.placement !== "float" &&
-      isVisible(button) &&
-      !isInSidebar(button)
-    ) {
-      const next = button.nextElementSibling;
-      if (
-        next &&
-        !isFolderOrPathControl(next) &&
-        !isPlusOrAccessControl(next) &&
-        !isSendControl(next) &&
-        (isModelControl(next) || looksLikeModelLabel(elementLabel(next)) || next.getAttribute?.("aria-haspopup") === "menu")
-      ) {
-        refreshButtonAppearance(button);
-        bindComposerInputWatch();
-        return;
-      }
-    }
     const found = findInlineContextGroup();
     button = document.querySelector(`[${BUTTON_ATTR}]`);
     const valid = placementLooksValid(found);
 
     if (!valid) {
-      // Keep any previous good inline placement if still connected next to a model-ish control.
-      if (button instanceof HTMLElement && button.isConnected && button.dataset.placement && button.dataset.placement !== "float") {
-        const next = button.nextElementSibling;
-        if (next && (isModelControl(next) || looksLikeModelLabel(elementLabel(next)) || next.getAttribute?.("aria-haspopup") === "menu")) {
-          refreshButtonAppearance(button);
-          bindComposerInputWatch();
-          return;
-        }
-      }
-      const host = ensureFloatingHost();
-      if (!(button instanceof HTMLElement) || button.dataset.version !== SCRIPT_VERSION) {
+      if (!(button instanceof HTMLElement) || button.dataset.version !== SCRIPT_VERSION || button.dataset.owner !== OWNER_TOKEN) {
         button?.remove();
         button = createButton();
       }
-      button.dataset.placement = "float";
-      if (button.parentElement !== host) host.appendChild(button);
-      document.querySelectorAll(`[${BUTTON_ATTR}]`).forEach((node) => {
-        if (node !== button) node.remove();
-      });
+      placeButtonInFallbackHost(button);
       refreshButtonAppearance(button);
       bindComposerInputWatch();
       debugLog("placement=float", {
@@ -1589,47 +1619,20 @@ author: Codex++ Community
       return;
     }
 
-    removeFloatingHostIfEmpty();
     const { group, modelItem, strategy, send } = found;
     button = document.querySelector(`[${BUTTON_ATTR}]`) || button;
-    document.querySelectorAll(`[${BUTTON_ATTR}]`).forEach((node) => {
-      if (node !== button) node.remove();
-    });
 
-    if (!(button instanceof HTMLElement) || button.dataset.version !== SCRIPT_VERSION) {
+    if (!(button instanceof HTMLElement) || button.dataset.version !== SCRIPT_VERSION || button.dataset.owner !== OWNER_TOKEN) {
       button?.remove();
       button = createButton();
     }
-    button.dataset.placement = strategy || "inline";
-
-    // Order must be: ✨, model, send
+    // The action row is a flex layout. Keep the visual order ✨, model, send
+    // but render ✨ in the document-level anchor host so it consumes no width.
     if (send && (modelItem === send || modelItem.contains?.(send))) {
       debugLog("refuse insert: modelItem is send");
       return;
     }
-
-    try {
-      if (button.parentElement !== group || button.nextSibling !== modelItem) {
-        group.insertBefore(button, modelItem);
-      }
-    } catch (_) {
-      try {
-        modelItem.before?.(button);
-      } catch (__) {
-        if (modelItem.parentElement) modelItem.parentElement.insertBefore(button, modelItem);
-      }
-    }
-
-    // Soft post-check: if we are clearly to the right of model, move before model again via parent.
-    try {
-      const bRect = button.getBoundingClientRect();
-      const mRect = modelItem.getBoundingClientRect();
-      if (bRect.left >= mRect.left - 1 && button.parentElement) {
-        button.parentElement.insertBefore(button, modelItem);
-      }
-    } catch (_) {
-      /* ignore */
-    }
+    if (!anchorButtonToModel(button, modelItem, strategy)) placeButtonInFallbackHost(button);
 
     refreshButtonAppearance(button);
     bindComposerInputWatch();
@@ -1746,16 +1749,44 @@ author: Codex++ Community
   }
 
   function responseErrorMessage(raw, fallback) {
-    const text = typeof raw === "string" ? raw : "";
+    let text = "";
+    if (typeof raw === "string") {
+      text = raw;
+    } else if (raw && typeof raw === "object") {
+      const nestedMessage = raw?.error?.message || raw?.message || raw?.error;
+      if (typeof nestedMessage === "string") {
+        text = nestedMessage;
+      } else {
+        try {
+          text = JSON.stringify(raw) || "";
+        } catch (_) {
+          text = String(raw);
+        }
+      }
+    }
+    const redact = (value) =>
+      collapseWs(String(value || ""))
+        .replace(/Bearer\s+[^\s,;"}]+/gi, "Bearer [REDACTED]")
+        .replace(/\b(api[_-]?key|authorization|token|secret)\s*[:=]\s*[^\s,;"}]+/gi, "$1=[REDACTED]")
+        .slice(0, 240);
     if (text.trim()) {
       try {
         const data = JSON.parse(text);
-        return collapseWs(data?.error?.message || data?.message || data?.error || text).slice(0, 240);
+        return redact(data?.error?.message || data?.message || data?.error || text);
       } catch (_) {
-        return collapseWs(text).slice(0, 240);
+        return redact(text);
       }
     }
     return fallback;
+  }
+
+  function cancelElectronFetch(requestId) {
+    try {
+      const pending = window.electronBridge?.sendMessageFromView?.({ type: "cancel-fetch", requestId });
+      Promise.resolve(pending).catch(() => {});
+    } catch (_) {
+      /* cancellation is best-effort */
+    }
   }
 
   function electronFetchJson({ upstreamUrl, method, headers, body, signal }) {
@@ -1778,6 +1809,7 @@ author: Codex++ Community
         callback(value);
       };
       const onAbort = () => {
+        cancelElectronFetch(requestId);
         const error = new Error("aborted");
         error.name = "AbortError";
         finish(reject, error);
@@ -1799,6 +1831,7 @@ author: Codex++ Community
         }
       };
       const timer = window.setTimeout(() => {
+        cancelElectronFetch(requestId);
         finish(reject, new Error("LLM 请求超时"));
       }, REQUEST_TIMEOUT_MS);
       window.addEventListener("message", onMessage);
@@ -1836,7 +1869,7 @@ author: Codex++ Community
       signal,
     );
     if (!result || result.status !== "ok") {
-      const message = collapseWs(result?.message || result?.error || "LLM Bridge 请求失败");
+      const message = responseErrorMessage(result?.message || result?.error, "LLM Bridge 请求失败");
       if (/unknown bridge path|未知.*bridge/i.test(message)) {
         throw bridgeUnsupportedError();
       }
@@ -1852,24 +1885,21 @@ author: Codex++ Community
       }
     }
     if (result.ok === false || !(httpStatus >= 200 && httpStatus < 300)) {
-      const message = data?.error?.message || data?.message || `HTTP ${httpStatus || "error"}`;
-      throw new Error(collapseWs(message).slice(0, 240));
+      const message = responseErrorMessage(data?.error?.message || data?.message || data?.error, `HTTP ${httpStatus || "error"}`);
+      throw new Error(message);
     }
     return data;
   }
 
   async function requestJson(options) {
-    if (hasCodexPlusBridge() && !runtime.bridgePathUnsupported) {
-      try {
-        const data = await requestJsonViaCodexBridge(options);
-        return data;
-      } catch (error) {
-        if (!isBridgeUnsupportedError(error)) throw error;
-        runtime.bridgePathUnsupported = true;
-        debugLog("/llm-proxy unavailable; falling back to Electron fetch bridge");
-      }
-    }
-    return electronFetchJson(options);
+    // Codex Desktop's native fetch channel returns a concrete HTTP response on
+    // current builds. The optional /llm-proxy bridge can remain pending until
+    // the outer 60s timeout, which turns upstream failures into a misleading
+    // generic "优化超时". Use the native channel first and never retry the same
+    // prompt through another transport after an upstream response/error.
+    if (hasElectronFetchBridge()) return electronFetchJson(options);
+    if (hasCodexPlusBridge()) return requestJsonViaCodexBridge(options);
+    throw new Error("当前 Codex++ 不提供可用的 LLM 请求通道");
   }
 
   async function callOpenAI({ baseUrl, apiKey, model, system, user, signal }) {
@@ -2115,7 +2145,7 @@ author: Codex++ Community
     overlay.innerHTML = `
       <div class="cpo-card" role="dialog" aria-modal="true" aria-label="Prompt Optimize 设置">
         <h2>Prompt Optimize 设置</h2>
-        <p class="cpo-sub">配置外部 LLM。请求优先由 Codex++ LLM Bridge 代发，并兼容当前发行版的 Electron 原生请求通道；无需 sidecar 或本地代理。右键 ✨ 可再次打开本面板。</p>
+        <p class="cpo-sub">配置外部 LLM。优先使用当前发行版的 Electron 原生请求通道，LLM Bridge 仅作兼容后备；无需 sidecar 或本地代理。右键 ✨ 可再次打开本面板。</p>
         <div class="cpo-grid">
           <label>协议
             <select data-cpo="protocol">
@@ -2130,7 +2160,7 @@ author: Codex++ Community
             <div class="cpo-prompt-head"><span>Codex++ 请求通道</span></div>
             <div style="font-size:12px;line-height:1.45;color:#d4d4d8;">
               ${hasCodexPlusBridge() && hasElectronFetchBridge()
-                ? "已检测到 LLM Bridge 与 Electron 原生通道；优先使用 /llm-proxy，不支持时自动兼容。"
+                ? "已检测到 Electron 原生请求通道与 LLM Bridge；优先使用原生请求通道，Bridge 仅作兼容后备。"
                 : hasCodexPlusBridge()
                   ? "已检测到 Codex++ LLM Bridge。"
                   : hasElectronFetchBridge()
@@ -2289,6 +2319,10 @@ author: Codex++ Community
     if (runtime.observer) runtime.observer.disconnect();
     runtime.observer = new MutationObserver(() => scheduleEnsure());
     runtime.observer.observe(document.documentElement, { childList: true, subtree: true });
+    if (!runtime.resizeHandler) {
+      runtime.resizeHandler = () => scheduleEnsure();
+      window.addEventListener("resize", runtime.resizeHandler);
+    }
     if (runtime.pollId) window.clearInterval(runtime.pollId);
     runtime.pollId = window.setInterval(() => {
       if (runtime.disposed) return;
@@ -2323,6 +2357,10 @@ author: Codex++ Community
     if (runtime.toastTimer) {
       window.clearTimeout(runtime.toastTimer);
       runtime.toastTimer = 0;
+    }
+    if (runtime.resizeHandler) {
+      window.removeEventListener("resize", runtime.resizeHandler);
+      runtime.resizeHandler = null;
     }
     for (const [input, listener] of runtime.inputListeners) {
       input.removeEventListener("input", listener);
@@ -2402,6 +2440,7 @@ author: Codex++ Community
       bridgePathUnsupported: runtime.bridgePathUnsupported,
       bridgePath: BRIDGE_PATH,
       electronFetchBridge: hasElectronFetchBridge(),
+      requestTransportPreference: hasElectronFetchBridge() ? "electron-fetch" : hasCodexPlusBridge() ? "llm-bridge" : "none",
       requestTransportAvailable: hasRequestTransport(),
       settings: (() => {
         const s = loadSettings();
@@ -2422,10 +2461,12 @@ author: Codex++ Community
   const api = {
     id: MARKET_ID,
     version: SCRIPT_VERSION,
+    instanceRevision: INSTANCE_REVISION,
     destroy,
     ensure: ensureSparkleButton,
     openSettings: openSettingsPanel,
     diagnose,
+    isOptimizing: () => runtime.loading,
     getSettings: () => {
       const s = loadSettings();
       return {
