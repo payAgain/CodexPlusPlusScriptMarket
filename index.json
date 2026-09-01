@@ -82,7 +82,7 @@
       "id": "codex-token-usage",
       "name": "Codex Token Usage",
       "description": "显示token消耗统计",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "author": "Albert_Luo",
       "tags": [
         "codex",
@@ -93,7 +93,7 @@
       ],
       "homepage": "",
       "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-token-usage.js",
-      "sha256": "86044b6829249234de1f09081586c74f84034223cd191eb484a09f54366a387c"
+      "sha256": "b19954a0d463008a37b34b04441ccf1bc7255653c12e1567a8921f6366300040"
     },
     {
       "id": "codex-daily-token-usage",

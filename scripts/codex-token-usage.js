@@ -2,7 +2,7 @@
   "use strict";
 
   const SCRIPT_ID = "codex-token-usage";
-  const SCRIPT_VERSION = "0.1.8";
+  const SCRIPT_VERSION = "0.1.9";
   const BADGE_CLASS = "codex-token-usage-badge";
   const STYLE_ID = "codex-token-usage-style";
   const RECENT_LIMIT = 20;
@@ -1537,10 +1537,14 @@
     }
     style.textContent = `
       .${BADGE_CLASS} {
-        display: inline-flex;
+        display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 6px;
-        margin: 8px 0 0;
+        box-sizing: border-box;
+        width: fit-content;
+        max-width: 100%;
+        margin: 0 0 6px;
         padding: 5px 9px;
         border: 1px solid rgba(20, 184, 166, .3);
         border-radius: 7px;
@@ -1549,15 +1553,16 @@
         font: 12px/1.35 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         opacity: .9;
         letter-spacing: 0;
+        white-space: normal;
+        word-break: break-word;
       }
       .${BADGE_CLASS}[data-status="running"] {
         border-color: rgba(245, 158, 11, .36);
         background: rgba(245, 158, 11, .1);
       }
-      .${BADGE_CLASS}[data-placement="message-actions"] {
-        display: flex;
-        width: fit-content;
-        margin: 6px 0 0;
+      .${BADGE_CLASS}[data-placement="composer"] {
+        position: relative;
+        z-index: 2;
       }
       main > .${BADGE_CLASS},
       body > .${BADGE_CLASS} {
@@ -1679,6 +1684,41 @@
     document.querySelectorAll?.(`.${BADGE_CLASS}`).forEach((node) => node.remove());
   }
 
+  function composerMountNode() {
+    const composerRoot = Array.from(
+      document.querySelectorAll('[class*="_ComposerLayoutRoot"], [class*="ComposerLayoutRoot"]'),
+    ).map((node) => {
+      const rect = visibleRect(node);
+      return { node, rect };
+    }).filter(({ rect }) => rect && rect.width >= 240 && rect.height >= 48)
+      .sort((left, right) => (right.rect.bottom || 0) - (left.rect.bottom || 0)
+        || (right.rect.width || 0) - (left.rect.width || 0))[0]?.node;
+    if (composerRoot instanceof Element) return composerRoot;
+
+    const candidates = Array.from(
+      document.querySelectorAll("textarea,[contenteditable='true'],[role='textbox'],div.ProseMirror"),
+    ).filter((node) => {
+      if (!(node instanceof Element) || state.root?.contains?.(node)) return false;
+      const rect = visibleRect(node);
+      if (!rect || rect.width < 120 || rect.height < 20) return false;
+      if (rect.bottom < window.innerHeight * 0.45) return false;
+      return !node.closest?.("aside,nav,[role='dialog'],[aria-modal='true']");
+    });
+
+    for (const node of candidates.sort((left, right) => {
+      const leftRect = visibleRect(left);
+      const rightRect = visibleRect(right);
+      return (rightRect?.bottom || 0) - (leftRect?.bottom || 0)
+        || (rightRect?.width || 0) - (leftRect?.width || 0);
+    })) {
+      const mount = node.closest?.('[class*="_ComposerLayoutRoot"], [class*="ComposerLayoutRoot"]');
+      if (mount instanceof Element && visibleRect(mount)) return mount;
+    }
+
+    const fallback = candidates[0]?.parentElement;
+    return fallback instanceof Element && visibleRect(fallback) ? fallback : null;
+  }
+
   function renderMetric(metric = metricForActiveConversation()) {
     if (!metric) {
       removeBadges();
@@ -1690,24 +1730,25 @@
     }
     if (!metric) return;
     ensureStyle();
-    const target = latestAssistantNode();
+    const target = composerMountNode();
     if (!target) return;
     const displayMetric = {
       ...metric,
       elapsedMs: elapsedFromAssistantNode(target) || metric.elapsedMs,
     };
-    document.querySelectorAll(`main > .${BADGE_CLASS}, body > .${BADGE_CLASS}`).forEach((node) => node.remove());
     let badge = target.querySelector?.(`:scope > .${BADGE_CLASS}`);
     if (!badge) {
       badge = document.createElement("div");
       badge.className = BADGE_CLASS;
-      target.appendChild(badge);
+    }
+    if (badge !== target.firstElementChild) {
+      target.insertBefore(badge, target.firstChild);
     }
     badge.dataset.metricId = displayMetric.id || "";
     badge.dataset.status = displayMetric.status || "complete";
     badge.dataset.conversationId = displayMetric.conversationId || "";
     badge.dataset.version = SCRIPT_VERSION;
-    badge.dataset.placement = target === document.querySelector("main") ? "fallback" : "message-actions";
+    badge.dataset.placement = "composer";
     badge.textContent = formatBadgeText(displayMetric);
     document.querySelectorAll(`.${BADGE_CLASS}`).forEach((node) => {
       if (node !== badge) node.remove();
