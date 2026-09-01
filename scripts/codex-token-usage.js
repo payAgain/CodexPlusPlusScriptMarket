@@ -2,7 +2,7 @@
   "use strict";
 
   const SCRIPT_ID = "codex-token-usage";
-  const SCRIPT_VERSION = "0.1.7";
+  const SCRIPT_VERSION = "0.1.8";
   const BADGE_CLASS = "codex-token-usage-badge";
   const STYLE_ID = "codex-token-usage-style";
   const RECENT_LIMIT = 20;
@@ -1593,6 +1593,9 @@
     if (!text || text.length < 20) return -1;
     if (node.querySelector?.("textarea,[contenteditable='true']")) return -1;
     if (/thread-scroll-container|main-surface|app-shell|timeline/i.test(String(node.className || ""))) return -1;
+    // Shell / 工具执行卡片不是消息容器，避免徽标被嵌进命令输出块。
+    const firstLabel = node.querySelector?.(":scope > h1,:scope > h2,:scope > h3,:scope > h4,:scope > span,:scope > div")?.textContent?.trim() || "";
+    if (/^(Shell|终端|Terminal|已运行|正在运行|命令已运行)$/.test(firstLabel)) return -1;
 
     let score = 0;
     if (node.querySelector?.("button[aria-label='复制'],button[aria-label='Copy']")) score += 6;
@@ -1613,7 +1616,8 @@
         best = node;
         bestScore = score;
       }
-      if (score >= 10) break;
+      // 不提前退出：工具卡片可能先拿到高分，必须走完整条祖先链，
+      // 让携带"喜欢/不喜欢"按钮的消息根容器参与比较。
     }
     return bestScore > 0 ? best : null;
   }
@@ -1650,7 +1654,9 @@
     ];
     for (const selector of selectors) {
       try {
-        const nodes = Array.from(document.querySelectorAll(selector)).filter((node) => node instanceof Element);
+        const nodes = Array.from(document.querySelectorAll(selector))
+          .filter((node) => node instanceof Element)
+          .filter((node) => !node.closest?.('[data-message-author-role="tool"],[data-testid*="tool-call"]'));
         if (nodes.length) return nodes[nodes.length - 1];
       } catch (_) {
         // Some Chromium builds do not support every selector shape.

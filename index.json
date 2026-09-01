@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-22T15:50:28Z",
+  "updated_at": "2026-09-01T14:42:21Z",
   "scripts": [
     {
       "id": "codex-relay-balance",
@@ -15,8 +15,8 @@
         "sub2api",
         "ui"
       ],
-      "homepage": "https://github.com/BigPizzaV3/CodexPlusPlusScriptMarket",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-relay-balance.js",
+      "homepage": "https://github.com/payAgain/CodexPlusPlusScriptMarket",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-relay-balance.js",
       "sha256": "6E42581ADC963E9093E3E6ED16B96C785320D2BBFBFF3A9F0BF9C922F47736F7",
       "requirements": [
         "Codex++ 用户脚本环境",
@@ -41,7 +41,7 @@
         "meter"
       ],
       "homepage": "https://github.com/Minghou-Lei/codex-context-used-meter",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-context-used-meter.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-context-used-meter.js",
       "sha256": "d2a5efe42d88d9b706b8ca8799947d2bc31c1b608b30c2673ac36fa0050911ab"
     },
     {
@@ -57,7 +57,7 @@
         "hide"
       ],
       "homepage": "https://github.com/0xTotoroX/codex-hide-usage-alert",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/hide-usage-alert.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/hide-usage-alert.js",
       "sha256": "c7e907e998bfc3d4153302fa84dfb0b1e4fa16d6e738db669713a84872f631d6"
     },
     {
@@ -75,14 +75,14 @@
         "ui"
       ],
       "homepage": "https://github.com/0xTotoroX/model-deck",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/model-deck.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/model-deck.js",
       "sha256": "381362c2bffbc570a27a1879fd18b59235dd0bf7a7d42817bacf666c466a3fa5"
     },
     {
       "id": "codex-token-usage",
       "name": "Codex Token Usage",
       "description": "显示token消耗统计",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "author": "Albert_Luo",
       "tags": [
         "codex",
@@ -92,8 +92,8 @@
         "cache"
       ],
       "homepage": "",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-token-usage.js",
-      "sha256": "03808d22f53da374837227636ebd9f1ba593fe5aba6219e90e636d7ed7c806eb"
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-token-usage.js",
+      "sha256": "86044b6829249234de1f09081586c74f84034223cd191eb484a09f54366a387c"
     },
     {
       "id": "codex-daily-token-usage",
@@ -110,7 +110,7 @@
         "ui"
       ],
       "homepage": "",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-daily-token-usage.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-daily-token-usage.js",
       "sha256": "5c74b7051e5617a0d7d8e2f15d70870c131260990c3f98e1e5a0c665e39ae37d"
     },
     {
@@ -127,7 +127,7 @@
         "ui"
       ],
       "homepage": "",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-list-pagebuster.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-list-pagebuster.js",
       "sha256": "756ee2e2a91df449738192ae500de1ab75cbbc7129968982ca37f6f5a9aad78e"
     },
     {
@@ -159,7 +159,7 @@
         "ui"
       ],
       "homepage": "https://github.com/0xTotoroX/tux-toolbar-buddy",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/tux-toolbar-buddy.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/tux-toolbar-buddy.js",
       "sha256": "6570fba293c751958b6cf7077b51458e1b126cf99c9168c321729316a7f0262b"
     },
     {
@@ -179,7 +179,7 @@
         "history"
       ],
       "homepage": "https://github.com/JHees/bennett-ui-improvements-for-codexplusplus",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/bennett-ui-improvements.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/bennett-ui-improvements.js",
       "sha256": "39145ddb1101d41524f56cb96cfce7d1bc0e26baa8c11bedb32e7a144d2a9a29"
     },
     {
@@ -196,7 +196,7 @@
         "cpa"
       ],
       "homepage": "https://github.com/BigPizzaV3/CodexPlusPlus",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-provider-guard.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-provider-guard.js",
       "sha256": "a047592791a2836fd1d665c7b0a8ca8f64a8924ee4b2a08f09e3c52b12dec5b1"
     },
     {
@@ -213,8 +213,8 @@
         "diagnostic",
         "doctor"
       ],
-      "homepage": "https://github.com/BigPizzaV3/CodexPlusPlusScriptMarket",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-bundled-plugin-doctor.js",
+      "homepage": "https://github.com/payAgain/CodexPlusPlusScriptMarket",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-bundled-plugin-doctor.js",
       "sha256": "4c2eac259c62d007ec84ed925886ac79a2f5c520acb67c42f419e707934563ff"
     },
     {
@@ -230,7 +230,7 @@
         "usage"
       ],
       "homepage": "https://github.com/Tianzora/codex-token-cost",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-live-token-cost.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-live-token-cost.js",
       "sha256": "8F340EFE8233D62262804F6EA4A128208C81B883E1D8C6491DB2964D3D98D1BE"
     },
     {
@@ -248,8 +248,8 @@
         "openai",
         "anthropic"
       ],
-      "homepage": "https://github.com/BigPizzaV3/CodexPlusPlusScriptMarket",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/prompt-optimize.js",
+      "homepage": "https://github.com/payAgain/CodexPlusPlusScriptMarket",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/prompt-optimize.js",
       "sha256": "f7cf6b6f69e1c7d5dfc0f3f401b970fc26130c96283b43bf425991db4a8205c9"
     },
     {
@@ -265,7 +265,7 @@
         "ui"
       ],
       "homepage": "",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/Codex%20Model%20Matrix.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/Codex%20Model%20Matrix.js",
       "sha256": "0a25838a887699f8c8b72efc67f64d9df045697f6e1555b856fb10a9baa8f075"
     },
     {
@@ -282,7 +282,7 @@
         "ui"
       ],
       "homepage": "https://github.com/cocoxia123/CodexPluginTranslator",
-      "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/codex-plugin-translator.js",
+      "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-plugin-translator.js",
       "sha256": "7baf09e43e1e0d7a2db7790b9a9bee9c186a3796869baa73eee04aaa9fbfb4b4"
     }
   ]
