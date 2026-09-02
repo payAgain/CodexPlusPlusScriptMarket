@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Codex Daily Token Usage
 // @namespace    codex-plus-plus
-// @version      1.4.15
-// @description  每日 Token 统计，近 5 日滚动存储，优先复用已有采集，必要时内置采集，支持 Model 价格、成本估算、日期切换、5 日趋势与分享图。
+// @version      1.5.0
+// @description  每日 Token 统计，近 31 日滚动存储，优先复用已有采集，必要时内置采集，支持 Model 用量排名、月度热力图、成本估算与分享图。
 // @match        app://-/*
 // @run-at       document-start
 // ==/UserScript==
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.4.15";
+  const VERSION = "1.5.0";
   const API_KEY = "__codexDailyTokenUsage";
   const SOURCE_API_KEY = "__codexTokenUsage";
   const STORAGE_KEY = "__codexDailyTokenUsageV1";
@@ -25,7 +25,7 @@
   const HEADER_TOOLBAR_CLASS_SELECTOR = '[class*="ms-auto"][class*="shrink-0"][class*="items-center"]';
   const TOP_OBSTACLE_SELECTOR = `button,[role='button'],input,select,textarea,a[href],#${CODEX_PLUS_MENU_ID},[data-testid]`;
   const POLL_INTERVAL_MS = 1000;
-  const RETAIN_DAYS = 5;
+  const RETAIN_DAYS = 31;
   const MAX_TURNS_PER_DAY = 2000;
   const MAX_TOOL_CALLS_PER_DAY = 500;
   const MAX_TOOL_CALL_EVENT_KEYS_PER_DAY = 3000;
@@ -35,7 +35,7 @@
   const TOOL_CALL_DEDUPE_WINDOW_MS = 3000;
   const MAX_CAPTURE_BODY_CHARS = 2_000_000;
   const EXTERNAL_EMPTY_LIMIT = 4;
-  const TREND_DAYS = 5;
+  const TREND_DAYS = 31;
   const MODEL_BIND_WINDOW_MS = 30 * 60 * 1000;
   const UNKNOWN_MODEL = "Unknown";
   const PRICE_FIELDS = ["input", "cachedInput", "output", "reasoning"];
@@ -1362,6 +1362,74 @@
     }
     const maxTotal = Math.max(1, ...items.map((item) => item.total));
     return { dateKey: endKey, days: count, maxTotal, items };
+  }
+
+  function buildPeriodStats(dateKey = selectedDateKey, days = 30) {
+    const trend = buildTrendData(dateKey, days);
+    const total = trend.items.reduce((sum, item) => sum + item.total, 0);
+    const calls = trend.items.reduce((sum, item) => sum + item.calls, 0);
+    const turns = trend.items.reduce((sum, item) => sum + aggregateDay(item.dateKey).turns, 0);
+    const activeDays = trend.items.filter((item) => item.total > 0).length;
+    return {
+      days: trend.days,
+      total,
+      calls,
+      turns,
+      activeDays,
+      dailyAverage: activeDays > 0 ? total / activeDays : 0,
+    };
+  }
+
+  function heatLevel(total, maxTotal) {
+    if (total <= 0 || maxTotal <= 0) return 0;
+    const relative = Math.sqrt(Math.min(1, total / maxTotal));
+    if (relative <= 0.16) return 1;
+    if (relative <= 0.34) return 2;
+    if (relative <= 0.58) return 3;
+    if (relative <= 0.82) return 4;
+    return 5;
+  }
+
+  function buildHeatmapData(dateKey = selectedDateKey) {
+    const selected = parseDateKey(clampDateKey(dateKey));
+    if (!selected) return { label: "", activeDays: 0, maxTotal: 0, cells: [] };
+    const todayKey = getDateKey(Date.now());
+    const year = selected.getFullYear();
+    const month = selected.getMonth();
+    const dayCount = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+
+    for (let day = 1; day <= dayCount; day += 1) {
+      const date = new Date(year, month, day);
+      const cellKey = getDateKey(date.getTime());
+      const summary = aggregateDay(cellKey);
+      const total = toCount(summary.total);
+      cells.push({
+        dateKey: cellKey,
+        label: `${month + 1}/${day}`,
+        day,
+        total,
+        input: toCount(summary.input),
+        output: toCount(summary.output),
+        calls: toCount(summary.calls),
+        turns: toCount(summary.turns),
+        cost: Number(summary.cost) || 0,
+        active: cellKey === clampDateKey(dateKey),
+        future: cellKey > todayKey,
+        level: 0,
+      });
+    }
+
+    const maxTotal = Math.max(1, ...cells.map((cell) => cell.total));
+    cells.forEach((cell) => {
+      cell.level = heatLevel(cell.total, maxTotal);
+    });
+    return {
+      label: `${year}年${month + 1}月`,
+      activeDays: cells.filter((cell) => !cell.future && cell.total > 0).length,
+      maxTotal,
+      cells,
+    };
   }
 
   function trendPoints(trend, width = 286, height = 76, padding = 8) {
@@ -2994,6 +3062,197 @@
         font-variant-numeric: tabular-nums;
         font-weight: 550;
       }
+      #${PANEL_ID} .codex-daily-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        margin: 12px 0 9px;
+      }
+      #${PANEL_ID} .codex-daily-stat {
+        min-width: 0;
+        padding: 10px 8px;
+        border: 1px solid var(--color-token-border, rgba(127, 127, 127, 0.14));
+        border-radius: 10px;
+        background: var(--color-token-background-secondary, rgba(127, 127, 127, 0.06));
+      }
+      #${PANEL_ID} .codex-daily-stat-value {
+        overflow: hidden;
+        color: var(--color-token-foreground, #202020);
+        font-size: 15px;
+        line-height: 1.2;
+        font-weight: 760;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #${PANEL_ID} .codex-daily-stat-label {
+        margin-top: 4px;
+        overflow: hidden;
+        color: var(--color-token-foreground-secondary, #737373);
+        font-size: 9.5px;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #${PANEL_ID} .codex-daily-day-strip {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      #${PANEL_ID} .codex-daily-day-label {
+        overflow: hidden;
+        color: var(--color-token-foreground-secondary, #737373);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #${PANEL_ID} .codex-daily-day-token {
+        margin-top: 2px;
+        color: var(--color-token-foreground, #202020);
+        font-size: 15px;
+        line-height: 1.25;
+        font-weight: 750;
+        font-variant-numeric: tabular-nums;
+      }
+      #${PANEL_ID} .codex-daily-day-cost {
+        padding: 6px 9px;
+        border: 1px solid rgba(74, 144, 226, 0.22);
+        border-radius: 9px;
+        background: rgba(74, 144, 226, 0.1);
+        color: #2f7dd1;
+        font-size: 12px;
+        font-weight: 720;
+        font-variant-numeric: tabular-nums;
+      }
+      #${PANEL_ID} .codex-daily-rank-list {
+        display: grid;
+        margin-bottom: 10px;
+      }
+      #${PANEL_ID} .codex-daily-rank-row {
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--color-token-border, rgba(127, 127, 127, 0.12));
+        font-size: 11.5px;
+      }
+      #${PANEL_ID} .codex-daily-rank-row:last-child {
+        border-bottom: 0;
+      }
+      #${PANEL_ID} .codex-daily-rank-badge {
+        width: 17px;
+        height: 17px;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 5px;
+        background: var(--color-token-background-tertiary, rgba(127, 127, 127, 0.13));
+        color: var(--color-token-foreground-secondary, #737373);
+        font-size: 9.5px;
+        font-weight: 750;
+      }
+      #${PANEL_ID} .codex-daily-rank-row:first-child .codex-daily-rank-badge {
+        background: rgba(78, 228, 177, 0.18);
+        color: #17936a;
+      }
+      #${PANEL_ID} .codex-daily-model-name {
+        min-width: 0;
+        overflow: hidden;
+        font-weight: 640;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #${PANEL_ID} .codex-daily-model-usage {
+        overflow: hidden;
+        color: var(--color-token-foreground, #202020);
+        font-weight: 720;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #${PANEL_ID} .codex-daily-heat {
+        padding: 10px 11px 11px;
+        border: 1px solid var(--color-token-border, rgba(127, 127, 127, 0.14));
+        border-radius: 10px;
+        background: var(--color-token-background-secondary, rgba(127, 127, 127, 0.05));
+      }
+      #${PANEL_ID} .codex-daily-heat-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 10.5px;
+      }
+      #${PANEL_ID} .codex-daily-heat-title {
+        overflow: hidden;
+        font-weight: 680;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #${PANEL_ID} .codex-daily-heat-meta {
+        flex: 0 0 auto;
+        color: var(--color-token-foreground-secondary, #737373);
+        font-variant-numeric: tabular-nums;
+      }
+      #${PANEL_ID} .codex-daily-heatmap {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 34px));
+        justify-content: space-between;
+        gap: 3px;
+      }
+      #${PANEL_ID} .codex-daily-heat-weekday {
+        display: grid;
+        justify-items: center;
+        color: var(--color-token-foreground-secondary, #737373);
+        font-size: 8px;
+        line-height: 1;
+      }
+      #${PANEL_ID} .codex-daily-heat-cell {
+        width: 100%;
+        aspect-ratio: 1;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      #${PANEL_ID} .codex-daily-heat-cell[data-level="0"] { background: rgba(127, 127, 127, 0.1); }
+      #${PANEL_ID} .codex-daily-heat-cell[data-level="1"] { background: rgba(62, 190, 137, 0.24); }
+      #${PANEL_ID} .codex-daily-heat-cell[data-level="2"] { background: rgba(52, 180, 127, 0.42); }
+      #${PANEL_ID} .codex-daily-heat-cell[data-level="3"] { background: rgba(44, 169, 118, 0.62); }
+      #${PANEL_ID} .codex-daily-heat-cell[data-level="4"] { background: rgba(36, 158, 108, 0.82); }
+      #${PANEL_ID} .codex-daily-heat-cell[data-level="5"] { background: #2aa876; }
+      #${PANEL_ID} .codex-daily-heat-cell:hover,
+      #${PANEL_ID} .codex-daily-heat-cell:focus-visible {
+        border-color: rgba(42, 168, 118, 0.9);
+        outline: none;
+      }
+      #${PANEL_ID} .codex-daily-heat-cell.is-active {
+        border-color: #4ee4b1;
+        box-shadow: 0 0 0 1px #4ee4b1 inset;
+      }
+      #${PANEL_ID} .codex-daily-heat-cell.is-future {
+        cursor: default;
+        opacity: 0.55;
+      }
+      #${PANEL_ID} .codex-daily-heat-legend {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        margin-top: 9px;
+        color: var(--color-token-foreground-secondary, #737373);
+        font-size: 9px;
+      }
+      #${PANEL_ID} .codex-daily-legend-swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+      }
       #${PANEL_ID} .codex-daily-trend {
         position: relative;
         margin-top: 11px;
@@ -3402,6 +3661,29 @@
         #${PANEL_ID} .codex-daily-foot {
           background: var(--color-token-background, #202020);
         }
+        #${PANEL_ID} .codex-daily-stat-value,
+        #${PANEL_ID} .codex-daily-day-token,
+        #${PANEL_ID} .codex-daily-model-usage {
+          color: #f2f2f2;
+        }
+        #${PANEL_ID} .codex-daily-rank-badge {
+          color: rgba(242, 242, 242, 0.72);
+          background: rgba(255, 255, 255, 0.09);
+        }
+        #${PANEL_ID} .codex-daily-rank-row:first-child .codex-daily-rank-badge {
+          color: #4ee4b1;
+          background: rgba(78, 228, 177, 0.16);
+        }
+        #${PANEL_ID} .codex-daily-heat-cell[data-level="0"] { background: rgba(255, 255, 255, 0.075); }
+        #${PANEL_ID} .codex-daily-heat-cell[data-level="1"] { background: rgba(78, 228, 177, 0.24); }
+        #${PANEL_ID} .codex-daily-heat-cell[data-level="2"] { background: rgba(78, 228, 177, 0.4); }
+        #${PANEL_ID} .codex-daily-heat-cell[data-level="3"] { background: rgba(78, 228, 177, 0.58); }
+        #${PANEL_ID} .codex-daily-heat-cell[data-level="4"] { background: rgba(78, 228, 177, 0.78); }
+        #${PANEL_ID} .codex-daily-heat-cell[data-level="5"] { background: #3ddc9a; }
+        #${PANEL_ID} .codex-daily-heat-cell.is-active {
+          border-color: #7df3c8;
+          box-shadow: 0 0 0 1px #7df3c8 inset;
+        }
         #${PANEL_ID} .codex-daily-price-model-input,
         #${PANEL_ID} .codex-daily-price-input {
           color: #f2f2f2;
@@ -3445,64 +3727,48 @@
             </span>
           </span>
         </div>
-        <div class="codex-daily-summary">
-          <div class="codex-daily-total-block">
-            <div class="codex-daily-total-label">累计 Token</div>
-            <div class="codex-daily-hero">0</div>
+        <div class="codex-daily-stats">
+          <div class="codex-daily-stat" title="" data-field="sevenDay">
+            <div class="codex-daily-stat-value">0</div>
+            <div class="codex-daily-stat-label">7 天</div>
           </div>
-          <div class="codex-daily-cost">
-            <span class="codex-daily-cost-label">估算金额</span>
-            <span class="codex-daily-cost-value" data-field="cost">$0.0000</span>
+          <div class="codex-daily-stat" title="" data-field="thirtyDay">
+            <div class="codex-daily-stat-value">0</div>
+            <div class="codex-daily-stat-label">30 天</div>
+          </div>
+          <div class="codex-daily-stat" title="" data-field="dailyAverage">
+            <div class="codex-daily-stat-value">0</div>
+            <div class="codex-daily-stat-label">日均</div>
+          </div>
+          <div class="codex-daily-stat" title="" data-field="turns">
+            <div class="codex-daily-stat-value">0</div>
+            <div class="codex-daily-stat-label">Turns</div>
           </div>
         </div>
-        <div class="codex-daily-grid">
-          <span class="codex-daily-label">输入 Token</span><span class="codex-daily-value" data-field="input">0</span>
-          <span class="codex-daily-label">输出 Token</span><span class="codex-daily-value" data-field="output">0</span>
-          <span class="codex-daily-label">缓存输入</span><span class="codex-daily-value" data-field="cached">0</span>
-          <span class="codex-daily-label">推理 Token</span><span class="codex-daily-value" data-field="reasoning">0</span>
-          <span class="codex-daily-label">请求次数</span><span class="codex-daily-value" data-field="calls">0</span>
-          <span class="codex-daily-label">最近更新</span><span class="codex-daily-value" data-field="updatedAt">暂无</span>
+        <div class="codex-daily-day-strip">
+          <div class="codex-daily-day-main">
+            <div class="codex-daily-day-label" data-field="dayLabel"></div>
+            <div class="codex-daily-day-token" data-field="dayTotal">0 TOKEN</div>
+          </div>
+          <div class="codex-daily-day-cost" data-field="cost" title="基于已配置价格估算">$0.0000</div>
         </div>
-        <div class="codex-daily-trend">
-          <div class="codex-daily-trend-head">
-            <span class="codex-daily-trend-title">近 5 日趋势</span>
-            <span class="codex-daily-trend-peak" data-field="trendPeak">峰值 0</span>
+        <div class="codex-daily-rank-list"></div>
+        <div class="codex-daily-heat">
+          <div class="codex-daily-heat-head">
+            <span class="codex-daily-heat-title" data-field="heatLabel"></span>
+            <span class="codex-daily-heat-meta" data-field="heatMeta"></span>
           </div>
-          <svg class="codex-daily-trend-svg" viewBox="0 0 300 82" role="img" aria-label="近 5 日 Token 趋势"></svg>
-          <div class="codex-daily-trend-labels"></div>
-          <div class="codex-daily-trend-tooltip" hidden></div>
-        </div>
-        <div class="codex-daily-models">
-          <div class="codex-daily-section-head">
-            <span class="codex-daily-section-title">按 Model 分布</span>
-            <span class="codex-daily-section-meta" data-field="modelMeta">暂无定价</span>
+          <div class="codex-daily-heatmap" data-field="heatmap"></div>
+          <div class="codex-daily-heat-legend">
+            <span>少</span>
+            <span class="codex-daily-legend-swatch" data-level="0"></span>
+            <span class="codex-daily-legend-swatch" data-level="1"></span>
+            <span class="codex-daily-legend-swatch" data-level="2"></span>
+            <span class="codex-daily-legend-swatch" data-level="3"></span>
+            <span class="codex-daily-legend-swatch" data-level="4"></span>
+            <span class="codex-daily-legend-swatch" data-level="5"></span>
+            <span>多</span>
           </div>
-          <div class="codex-daily-model-list"></div>
-        </div>
-        <div class="codex-daily-tools">
-          <div class="codex-daily-section-head">
-            <span class="codex-daily-section-title">工具调用</span>
-            <span class="codex-daily-section-meta" data-field="toolMeta">MCP 0 · 插件 0</span>
-          </div>
-          <div class="codex-daily-tool-metrics">
-            <div class="codex-daily-tool-metric">
-              <span>可识别请求</span>
-              <strong data-field="toolTurnCount">0</strong>
-            </div>
-            <div class="codex-daily-tool-metric">
-              <span>调用率</span>
-              <strong data-field="toolCallRate">0%</strong>
-            </div>
-            <div class="codex-daily-tool-metric">
-              <span>调用密度</span>
-              <strong data-field="toolDensity">0 / 10万T</strong>
-            </div>
-            <div class="codex-daily-tool-metric">
-              <span>关联用量</span>
-              <strong data-field="toolLinkedUsage">待关联</strong>
-            </div>
-          </div>
-          <div class="codex-daily-tool-list"></div>
         </div>
         <div class="codex-daily-price-panel" hidden>
           <div class="codex-daily-section-head">
@@ -3628,32 +3894,23 @@
 
   function renderModelBreakdown(snapshot) {
     if (!panel) return;
-    const list = panel.querySelector(".codex-daily-model-list");
-    const meta = panel.querySelector('[data-field="modelMeta"]');
-    if (meta) {
-      const sourceParts = [];
-      if (snapshot.customPricedModels) sourceParts.push(`${snapshot.customPricedModels} 个自定义`);
-      if (snapshot.defaultPricedModels) sourceParts.push(`${snapshot.defaultPricedModels} 个预置参考价`);
-      const pricedText = snapshot.pricedModels > 0 ? sourceParts.join(" · ") || `${snapshot.pricedModels} 个 Model 已定价` : "暂无定价";
-      meta.textContent = `${formatCost(snapshot.cost)} · ${pricedText}`;
-    }
+    const list = panel.querySelector(".codex-daily-rank-list");
     if (!list) return;
     const models = snapshot.models?.length
       ? snapshot.models
-      : [{ model: UNKNOWN_MODEL, total: 0, cost: 0, priced: false }];
-    const maxTotal = Math.max(1, ...models.map((item) => toCount(item.total)));
+      : [{ model: UNKNOWN_MODEL, total: 0 }];
+    const selectedTotal = Math.max(1, toCount(snapshot.total));
+
     list.replaceChildren(
-      ...models.slice(0, 6).map((item) => {
+      ...models.slice(0, 6).map((item, index) => {
+        const total = toCount(item.total);
+        const percent = snapshot.total > 0 ? total / selectedTotal : 0;
         const row = document.createElement("div");
-        row.className = "codex-daily-model-row";
-        const percent = Math.max(4, Math.min(100, (toCount(item.total) / maxTotal) * 100));
-        const priceTitle = item.priceSource === "default" ? DEFAULT_OPENAI_PRICE_SOURCE : item.priceSource === "custom" ? "用户自定义价格" : "未配置价格";
+        row.className = "codex-daily-rank-row";
         row.innerHTML = `
+          <span class="codex-daily-rank-badge">${index + 1}</span>
           <span class="codex-daily-model-name" title="${escapeHtml(item.model)}">${escapeHtml(item.model)}</span>
-          <span class="codex-daily-model-cost" title="${escapeAttribute(priceTitle)}">${item.priced ? formatCost(item.cost) : "未定价"}</span>
-          <span class="codex-daily-model-bar" title="${formatExact(item.total)} Token">
-            <span class="codex-daily-model-fill" style="width: ${percent.toFixed(1)}%"></span>
-          </span>
+          <span class="codex-daily-model-usage" title="${formatExact(total)} Token · 占比 ${formatPercent(percent)}">${formatCompact(total)} · ${formatPercent(percent)}</span>
         `;
         return row;
       })
@@ -3717,6 +3974,72 @@
         return row;
       })
     );
+  }
+
+  function renderPeriodStats(dateKey) {
+    if (!panel) return;
+    const sevenDay = buildPeriodStats(dateKey, 7);
+    const thirtyDay = buildPeriodStats(dateKey, 30);
+    const fields = [
+      ["sevenDay", sevenDay.total, `近 7 天共 ${formatExact(sevenDay.total)} Token`],
+      ["thirtyDay", thirtyDay.total, `近 30 天共 ${formatExact(thirtyDay.total)} Token`],
+      ["dailyAverage", thirtyDay.dailyAverage, `${thirtyDay.activeDays} 个活跃日平均`],
+      ["turns", thirtyDay.turns, `近 30 天共 ${formatExact(thirtyDay.turns)} 个 turn`],
+    ];
+    for (const [field, value, title] of fields) {
+      const card = panel.querySelector(`[data-field="${field}"]`);
+      if (!card) continue;
+      card.title = title;
+      const valueNode = card.querySelector(".codex-daily-stat-value");
+      if (valueNode) valueNode.textContent = field === "turns" ? formatExact(value) : formatCompact(value);
+    }
+
+    const dayLabel = panel.querySelector('[data-field="dayLabel"]');
+    const dayTotal = panel.querySelector('[data-field="dayTotal"]');
+    const snapshot = aggregateDay(dateKey);
+    if (dayLabel) dayLabel.textContent = formatDisplayDate(dateKey);
+    if (dayTotal) dayTotal.textContent = `${formatExact(snapshot.total)} TOKEN`;
+  }
+
+  function renderHeatmap(dateKey) {
+    if (!panel) return;
+    const container = panel.querySelector('[data-field="heatmap"]');
+    const label = panel.querySelector('[data-field="heatLabel"]');
+    const meta = panel.querySelector('[data-field="heatMeta"]');
+    const heat = buildHeatmapData(dateKey);
+    if (label) label.textContent = `${heat.label} Token 热力图`;
+    if (meta) meta.textContent = `活跃 ${heat.activeDays} 天`;
+    if (!container) return;
+
+    const firstDay = parseDateKey(`${clampDateKey(dateKey).slice(0, 8)}01`)?.getDay() || 0;
+    const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+    const slots = Math.ceil((firstDay + heat.cells.length) / 7) * 7;
+    const nodes = weekdays.map((name) => {
+      const weekday = document.createElement("span");
+      weekday.className = "codex-daily-heat-weekday";
+      weekday.textContent = name;
+      return weekday;
+    });
+
+    for (let slot = 0; slot < slots; slot += 1) {
+      const index = slot - firstDay;
+      if (index < 0 || index >= heat.cells.length) {
+        nodes.push(document.createElement("span"));
+        continue;
+      }
+      const cell = heat.cells[index];
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "codex-daily-heat-cell";
+      button.dataset.level = String(cell.level);
+      button.title = `${formatDisplayDate(cell.dateKey)} · ${formatExact(cell.total)} Token · ${formatExact(cell.calls)} 次请求`;
+      button.setAttribute("aria-label", button.title);
+      if (cell.active) button.classList.add("is-active");
+      if (cell.future) button.classList.add("is-future");
+      if (!cell.future) button.addEventListener("click", () => selectDate(cell.dateKey));
+      nodes.push(button);
+    }
+    container.replaceChildren(...nodes);
   }
 
   function renderPriceSettings(snapshot) {
@@ -4374,14 +4697,8 @@
     root.querySelector(".codex-daily-total").textContent = formatCompact(todaySnapshot.total);
     panel.querySelector(".codex-daily-title").textContent =
       selectedDateKey === todayKey ? "今日 Token 用量" : "Token 用量";
-    panel.querySelector(".codex-daily-hero").textContent = formatExact(snapshot.total);
-    panel.querySelector('[data-field="cost"]').textContent = formatCost(snapshot.cost);
-    panel.querySelector('[data-field="input"]').textContent = formatExact(snapshot.input);
-    panel.querySelector('[data-field="output"]').textContent = formatExact(snapshot.output);
-    panel.querySelector('[data-field="cached"]').textContent = formatExact(snapshot.cached);
-    panel.querySelector('[data-field="reasoning"]').textContent = formatExact(snapshot.reasoning);
-    panel.querySelector('[data-field="calls"]').textContent = formatExact(snapshot.calls);
-    panel.querySelector('[data-field="updatedAt"]').textContent = formatTime(snapshot.updatedAt);
+    const costNode = panel.querySelector('[data-field="cost"]');
+    if (costNode) costNode.textContent = formatCost(snapshot.cost);
     const dateInput = panel.querySelector(".codex-daily-date-input");
     dateInput.min = getMinimumDateKey();
     dateInput.max = todayKey;
@@ -4391,9 +4708,9 @@
     panel.querySelector('[data-action="next-day"]').disabled =
       selectedDateKey >= todayKey;
     panel.querySelector(".codex-daily-status-text").textContent = sourceStatusText(snapshot);
-    renderPanelTrend(buildTrendData(selectedDateKey));
+    renderPeriodStats(selectedDateKey);
     renderModelBreakdown(snapshot);
-    renderToolCalls(snapshot);
+    renderHeatmap(selectedDateKey);
     if (panel.querySelector(".codex-daily-price-panel")?.hidden === false && !isEditingPriceSettings()) {
       renderPriceSettings(snapshot);
     }
