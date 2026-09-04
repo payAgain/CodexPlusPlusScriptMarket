@@ -1,32 +1,32 @@
 {
   "version": 1,
-  "updated_at": "2026-09-02T02:20:19Z",
+  "updated_at": "2026-09-04T00:00:00Z",
   "scripts": [
     {
       "id": "codex-theme-studio",
       "name": "Codex Theme Studio",
-      "description": "Codex 桌面端主题美化：官方 CSS 变量驱动的深色预设（Claude 陶土/墨蓝/曜石/青屿）、内置字体、自定义强调色、圆角与超椭圆圆角、聊天字号，一键回到官方默认。",
-      "version": "1.2.0",
+      "description": "Codex 桌面端主题美化：官方 CSS 变量驱动的配色预设（Claude 陶土/墨蓝/曜石/青屿）、内置字体、自动适配深浅色的自定义强调色、圆角与超椭圆圆角、聊天字号，一键回到官方默认。",
+      "version": "1.2.1",
       "author": "payAgain",
       "tags": [
         "codex",
         "theme",
         "ui",
         "dark",
+        "light",
         "claude",
         "fonts"
       ],
       "homepage": "https://github.com/payAgain/CodexPlusPlusScriptMarket",
       "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-theme-studio.js",
-      "sha256": "198B15FF21F21B92DF10351B1356B963D03E8203BEAE9E062A9E9E11645EF3A1",
+      "sha256": "C01BA72DFAACBFFAD9AA6428BB1D996494A4B064DFA3FE89D236B753DB51EA68",
       "requirements": [
-        "Codex++ 用户脚本环境",
-        "桌面端深色模式（颜色预设与强调色仅在 electron-dark 下生效）"
+        "Codex++ 用户脚本环境"
       ],
       "limitations": [
         "官方更新可能调整内部 DOM/CSS 变量名，届时需要跟进版本",
         "字体内嵌为 data URI，单文件脚本约 3.6 MB",
-        "颜色预设与自定义强调色不会作用于官方浅色模式"
+        "内置颜色预设的完整深色界面仅在 electron-dark 下生效；自定义强调色会自动适配深浅色"
       ]
     },
     {

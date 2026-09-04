@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Codex Theme Studio
 // @namespace    codex-plus-plus
-// @version      1.2.0
-// @description  Codex 桌面端主题美化：官方 CSS 变量驱动的深色预设（Claude 陶土/墨蓝/曜石/青屿）、内置字体、自定义强调色、圆角与超椭圆圆角、聊天字号，随时一键回到官方默认。
+// @version      1.2.1
+// @description  Codex 桌面端主题美化：官方 CSS 变量驱动的配色预设（Claude 陶土/墨蓝/曜石/青屿）、内置字体、自动适配深浅色的自定义强调色、圆角与超椭圆圆角、聊天字号，随时一键回到官方默认。
 // @match        app://-/*
 // @run-at       document-start
 // ==/UserScript==
@@ -13,7 +13,7 @@
   if (window.top !== window.self) return;
 
   const SCRIPT_ID = "codex-theme-studio";
-  const SCRIPT_VERSION = "1.2.0";
+  const SCRIPT_VERSION = "1.2.1";
   const API_KEY = "__codexThemeStudio";
   const STYLE_ID = "codex-theme-studio-style";
   const STORAGE_KEY = "__codexThemeStudioSettingsV1";
@@ -300,26 +300,57 @@
     return /^#[0-9a-fA-F]{6}$/.test(value);
   }
 
-  function accentTokens(accent) {
+  function accentTokens(accent, mode = "dark") {
+    const light = mode === "light";
     return {
       "--color-accent-blue": accent,
       "--color-background-info-solid": accent,
-      "--color-background-info-soft": `color-mix(in srgb, ${accent} 30%, transparent)`,
-      "--color-background-info-surface": `color-mix(in oklab, ${accent} 22%, #000)`,
-      "--color-background-accent": `color-mix(in oklab, ${accent} 26%, #000)`,
-      "--color-background-accent-hover": `color-mix(in oklab, ${accent} 30%, #000)`,
-      "--color-background-accent-active": `color-mix(in oklab, ${accent} 34%, #000)`,
-      "--color-background-tip-badge": `color-mix(in oklab, ${accent} 16%, transparent)`,
-      "--color-background-tip-soft": `color-mix(in oklab, ${accent} 16%, transparent)`,
-      "--color-background-text-selection": `color-mix(in srgb, ${accent} 30%, transparent)`,
-      "--color-background-attribution-highlight": `color-mix(in srgb, ${accent} 30%, transparent)`,
+      "--color-background-info-soft": light
+        ? `color-mix(in srgb, ${accent} 14%, transparent)`
+        : `color-mix(in srgb, ${accent} 30%, transparent)`,
+      "--color-background-info-surface": light
+        ? `color-mix(in oklab, ${accent} 12%, #fff)`
+        : `color-mix(in oklab, ${accent} 22%, #000)`,
+      "--color-background-accent": light
+        ? `color-mix(in oklab, ${accent} 14%, #fff)`
+        : `color-mix(in oklab, ${accent} 26%, #000)`,
+      "--color-background-accent-hover": light
+        ? `color-mix(in oklab, ${accent} 18%, #fff)`
+        : `color-mix(in oklab, ${accent} 30%, #000)`,
+      "--color-background-accent-active": light
+        ? `color-mix(in oklab, ${accent} 22%, #fff)`
+        : `color-mix(in oklab, ${accent} 34%, #000)`,
+      "--color-background-tip-badge": light
+        ? `color-mix(in oklab, ${accent} 10%, transparent)`
+        : `color-mix(in oklab, ${accent} 16%, transparent)`,
+      "--color-background-tip-soft": light
+        ? `color-mix(in oklab, ${accent} 10%, transparent)`
+        : `color-mix(in oklab, ${accent} 16%, transparent)`,
+      "--color-background-text-selection": light
+        ? `color-mix(in srgb, ${accent} 22%, transparent)`
+        : `color-mix(in srgb, ${accent} 30%, transparent)`,
+      "--color-background-attribution-highlight": light
+        ? `color-mix(in srgb, ${accent} 14%, transparent)`
+        : `color-mix(in srgb, ${accent} 30%, transparent)`,
       "--color-border-focus": `color-mix(in srgb, ${accent} 76%, transparent)`,
-      "--color-text-accent": `color-mix(in srgb, ${accent} 72%, white)`,
-      "--color-text-info": `color-mix(in srgb, ${accent} 72%, white)`,
-      "--color-text-info-soft": accent,
-      "--color-text-tip": `color-mix(in srgb, ${accent} 72%, white)`,
-      "--color-text-tip-badge": `color-mix(in srgb, ${accent} 72%, white)`,
-      "--color-icon-accent": `color-mix(in srgb, ${accent} 72%, white)`,
+      "--color-text-accent": light
+        ? `color-mix(in oklab, ${accent} 74%, #101418)`
+        : `color-mix(in srgb, ${accent} 72%, white)`,
+      "--color-text-info": light
+        ? `color-mix(in oklab, ${accent} 74%, #101418)`
+        : `color-mix(in srgb, ${accent} 72%, white)`,
+      "--color-text-info-soft": light
+        ? `color-mix(in oklab, ${accent} 78%, #101418)`
+        : accent,
+      "--color-text-tip": light
+        ? `color-mix(in oklab, ${accent} 74%, #101418)`
+        : `color-mix(in srgb, ${accent} 72%, white)`,
+      "--color-text-tip-badge": light
+        ? `color-mix(in oklab, ${accent} 74%, #101418)`
+        : `color-mix(in srgb, ${accent} 72%, white)`,
+      "--color-icon-accent": light
+        ? `color-mix(in oklab, ${accent} 76%, #101418)`
+        : `color-mix(in srgb, ${accent} 72%, white)`,
     };
   }
 
@@ -348,16 +379,25 @@
     const accent = isHexColor(settings.accent) ? settings.accent : "";
     if (!preset || !preset.tokens) {
       if (!accent) return "";
-      const lines = Object.entries(accentTokens(accent))
+      const lines = Object.entries(accentTokens(accent, "dark"))
         .map(([name, value]) => `  ${name}: ${value} !important;`);
       return `html.electron-dark {\n${lines.join("\n")}\n}`;
     }
     const lines = Object.entries(preset.tokens).map(([name, value]) => `  ${name}: ${value} !important;`);
     const effectiveAccent = accent || preset.accent;
     if (effectiveAccent && isHexColor(effectiveAccent)) {
-      for (const [name, value] of Object.entries(accentTokens(effectiveAccent))) lines.push(`  ${name}: ${value} !important;`);
+      for (const [name, value] of Object.entries(accentTokens(effectiveAccent, "dark"))) lines.push(`  ${name}: ${value} !important;`);
     }
     return `html.electron-dark {\n${lines.join("\n")}\n}`;
+  }
+
+  function buildLightOverrides() {
+    const preset = PRESETS[settings.preset];
+    const accent = isHexColor(settings.accent) ? settings.accent : (preset?.accent || "");
+    if (!accent || !isHexColor(accent)) return "";
+    const lines = Object.entries(accentTokens(accent, "light"))
+      .map(([name, value]) => `  ${name}: ${value} !important;`);
+    return `html:not(.electron-dark) {\n${lines.join("\n")}\n}`;
   }
 
   // --------------------------------------------------------------- app skin
@@ -516,7 +556,7 @@
       styleEl.id = STYLE_ID;
       (document.head || document.documentElement).appendChild(styleEl);
     }
-    const parts = [buildFontFaceCss(), buildGlobalOverrides(), buildDarkOverrides(), buildClaudeOverrides(), buildPanelCss()];
+    const parts = [buildFontFaceCss(), buildGlobalOverrides(), buildDarkOverrides(), buildLightOverrides(), buildClaudeOverrides(), buildPanelCss()];
     if (settings.preset === "claude") document.documentElement.dataset.themeStudio = "claude";
     else delete document.documentElement.dataset.themeStudio;
     styleEl.textContent = parts.filter(Boolean).join("\n");
@@ -629,7 +669,7 @@
     accentRow.appendChild(accentInput);
     accentRow.appendChild(accentReset);
     accentSection.appendChild(accentRow);
-    accentSection.appendChild(el("div", "cts-hint", "仅作用于深色模式，修改立即生效"));
+    accentSection.appendChild(el("div", "cts-hint", "自动适配深浅色，修改立即生效"));
     panelEl.appendChild(accentSection);
 
     const radiusSection = el("div", "cts-section");

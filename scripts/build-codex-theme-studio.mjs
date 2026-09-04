@@ -17,6 +17,7 @@ const fonts = {
 };
 
 let output = readFileSync(templatePath, "utf8");
+output = output.replaceAll("\r\n", "\n");
 for (const [marker, file] of Object.entries(fonts)) {
   const dataUri = `data:font/woff2;base64,${readFileSync(file).toString("base64")}`;
   output = output.replaceAll(marker, dataUri);
