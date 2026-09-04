@@ -23,9 +23,13 @@ function loadHelpers() {
   vm.runInContext(
     [
       "const CROSS_SOURCE_DEDUPE_WINDOW_MS = 3000;",
+      sourceBetween("function extractJsonFragmentsFromSse", "function usageDetailsKey"),
       sourceBetween("function usageDetailsKey", "function extractUsages"),
+      sourceBetween("function isTurnRequestUrl", "function requestUrl"),
+      sourceBetween("function payloadSignalsCompletion", "function normalizeConversationId"),
+      sourceBetween("function usageHasBreakdown", "function formatCacheDetails"),
       sourceBetween("function sameUsageDetails", "function mergeUsage"),
-      "this.helpers = { dedupeUsages, shouldDedupeCall };",
+      "this.helpers = { dedupeUsages, shouldDedupeCall, summarizeConversationUsage, isTurnRequestUrl, payloadSignalsCompletion };",
     ].join("\n"),
     context,
   );
@@ -44,6 +48,112 @@ test("dedupeUsages removes identical usage objects found in one payload", () => 
   };
 
   assert.equal(dedupeUsages([usage, { ...usage }]).length, 1);
+});
+
+test("conversation cache summary includes every captured turn", () => {
+  const { summarizeConversationUsage } = loadHelpers();
+  const summary = summarizeConversationUsage([
+    { usage: { hasBreakdown: true, inputTotalTokens: 1000, cachedReadTokens: 400 } },
+    { usage: { hasBreakdown: true, inputTotalTokens: 500, cachedReadTokens: 100 } },
+  ]);
+
+  assert.equal(summary.inputTokens, 1500);
+  assert.equal(summary.cachedTokens, 500);
+  assert.equal(summary.turns, 2);
+});
+
+test("background Codex API requests do not start a turn timer", () => {
+  const { isTurnRequestUrl } = loadHelpers();
+
+  assert.equal(isTurnRequestUrl("app://codex/api/thread/list"), false);
+  assert.equal(isTurnRequestUrl("https://example.test/v1/responses"), true);
+  assert.equal(isTurnRequestUrl("vscode://codex/start-turn-for-host"), true);
+});
+
+test("completion events stop timing without treating generic completed records as turns", () => {
+  const { payloadSignalsCompletion } = loadHelpers();
+
+  assert.equal(payloadSignalsCompletion({ type: "response.completed" }), true);
+  assert.equal(payloadSignalsCompletion("data: [DONE]"), true);
+  assert.equal(payloadSignalsCompletion({ status: "completed", name: "background sync" }), false);
+  assert.equal(payloadSignalsCompletion({ status: "completed", turn_id: "turn-1" }), true);
+});
+
+test("completing a turn freezes elapsed time and clears the running clock", () => {
+  const start = source.indexOf("function completeCurrentTurn");
+  const end = source.indexOf("function sameUsage", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = {
+    currentTurn: { status: "running", calls: [], elapsedMs: 0, lastUpdatedAt: 0 },
+    turnStartedAt: 1000,
+    pendingTurnStartAt: 1000,
+  };
+  const context = {
+    state,
+    nowMs: () => 5000,
+    elapsedSinceTurnStarted: () => 4000,
+    scheduleRender: () => {},
+    publishMetric: () => assert.fail("empty turn should not publish a metric"),
+    aggregateTurnMetric: () => assert.fail("empty turn should not aggregate"),
+  };
+  vm.createContext(context);
+  vm.runInContext(`${source.slice(start, end)}; this.completeCurrentTurn = completeCurrentTurn;`, context);
+
+  assert.equal(context.completeCurrentTurn(2500), true);
+  assert.equal(state.currentTurn.status, "complete");
+  assert.equal(state.currentTurn.elapsedMs, 2500);
+  assert.equal(state.turnStartedAt, 0);
+  assert.equal(state.pendingTurnStartAt, 0);
+});
+
+test("final DOM elapsed time authoritatively calibrates a completed turn once", () => {
+  const start = source.indexOf("function reconcileTurnCompletionFromDom");
+  const end = source.indexOf("function removeBadges", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+
+  class MockElement {}
+  const assistant = new MockElement();
+  assistant.innerText = "Final response";
+  const state = {
+    currentTurn: {
+      status: "complete",
+      calls: [{}],
+      elapsedMs: 8000,
+      startedAt: 1000,
+      assistantNodeAtStart: null,
+      assistantTextAtStart: "",
+    },
+  };
+  let publishCount = 0;
+  const context = {
+    Element: MockElement,
+    state,
+    nowMs: () => 6000,
+    hasActiveStopControl: () => false,
+    latestAssistantNode: () => assistant,
+    elapsedFromAssistantNode: () => 3000,
+    assistantResponseComplete: () => false,
+    completeCurrentTurn: () => assert.fail("completed turn must not be completed twice"),
+    aggregateTurnMetric: () => ({}),
+    publishMetric: () => { publishCount += 1; },
+    scheduleRender: () => {},
+  };
+  vm.createContext(context);
+  vm.runInContext(`${source.slice(start, end)}; this.reconcile = reconcileTurnCompletionFromDom;`, context);
+
+  assert.equal(context.reconcile(), true);
+  assert.equal(state.currentTurn.elapsedMs, 3000);
+  assert.equal(state.currentTurn.domFinalized, true);
+  assert.equal(context.reconcile(), false);
+  assert.equal(publishCount, 1);
+});
+
+test("badge is rendered as a body-level fixed overlay", () => {
+  assert.match(source, /position:\s*fixed/);
+  assert.match(source, /document\.querySelector\?\.\(`body > \.\$\{BADGE_CLASS\}`\)/);
+  assert.doesNotMatch(source, /target\.insertBefore\(badge/);
 });
 
 test("same-source identical snapshots are deduplicated inside the window", () => {
