@@ -6,7 +6,7 @@
       "id": "codex-theme-studio",
       "name": "Codex Theme Studio",
       "description": "Codex 桌面端主题美化：官方 CSS 变量驱动的配色预设（Claude 陶土/墨蓝/曜石/青屿）、内置字体、自动适配深浅色的自定义强调色、圆角与超椭圆圆角、聊天字号，一键回到官方默认。",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "author": "payAgain",
       "tags": [
         "codex",
@@ -19,14 +19,14 @@
       ],
       "homepage": "https://github.com/payAgain/CodexPlusPlusScriptMarket",
       "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-theme-studio.js",
-      "sha256": "55230F7263D78A321AB6C6D99C82A9D59ECA18DC500EED0DF56B98990F066758",
+      "sha256": "267C49A08D2945B7182957F7E817A7BD4F8D8B469507A5230AD17B913C7D9F41",
       "requirements": [
         "Codex++ 用户脚本环境"
       ],
       "limitations": [
         "官方更新可能调整内部 DOM/CSS 变量名，届时需要跟进版本",
         "字体内嵌为 data URI，单文件脚本约 3.6 MB",
-        "内置颜色预设会使用完整深色界面；自定义强调色会自动适配官方默认的深浅色"
+        "内置颜色预设和自定义强调色会跟随 Codex 外观，分别使用浅色或深色配色"
       ]
     },
     {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Codex Theme Studio
 // @namespace    codex-plus-plus
-// @version      1.2.2
+// @version      1.2.3
 // @description  Codex 桌面端主题美化：官方 CSS 变量驱动的配色预设（Claude 陶土/墨蓝/曜石/青屿）、内置字体、自动适配深浅色的自定义强调色、圆角与超椭圆圆角、聊天字号，随时一键回到官方默认。
 // @match        app://-/*
 // @run-at       document-start
@@ -13,7 +13,7 @@
   if (window.top !== window.self) return;
 
   const SCRIPT_ID = "codex-theme-studio";
-  const SCRIPT_VERSION = "1.2.2";
+  const SCRIPT_VERSION = "1.2.3";
   const API_KEY = "__codexThemeStudio";
   const STYLE_ID = "codex-theme-studio-style";
   const STORAGE_KEY = "__codexThemeStudioSettingsV1";
@@ -354,6 +354,66 @@
     };
   }
 
+  const LIGHT_PRESET_PALETTES = {
+    claude: { canvas: "#fbfaf7", sidebar: "#f3f0e9", surface: "#fffdf8", control: "#ebe7de", text: "#2b2926", muted: "#6f6a62", border: "rgba(73, 65, 54, 0.13)" },
+    ink: { canvas: "#f7faff", sidebar: "#edf3fb", surface: "#ffffff", control: "#e5edf8", text: "#182638", muted: "#607087", border: "rgba(45, 78, 116, 0.14)" },
+    obsidian: { canvas: "#f7f7f7", sidebar: "#eeeeee", surface: "#ffffff", control: "#e5e5e5", text: "#191919", muted: "#686868", border: "rgba(0, 0, 0, 0.13)" },
+    tea: { canvas: "#f5faf7", sidebar: "#eaf4ee", surface: "#fcfffd", control: "#e0eee6", text: "#193128", muted: "#5e766b", border: "rgba(42, 103, 75, 0.14)" },
+  };
+
+  function lightPresetTokens(presetId, accent) {
+    const palette = LIGHT_PRESET_PALETTES[presetId];
+    if (!palette) return {};
+    return {
+      "--color-background-surface": palette.canvas,
+      "--color-background-surface-under": palette.sidebar,
+      "--color-background-primary-soft": palette.sidebar,
+      "--color-background-elevated-primary": palette.surface,
+      "--color-background-elevated-primary-opaque": palette.surface,
+      "--color-background-elevated-secondary": palette.control,
+      "--color-background-elevated-secondary-opaque": palette.control,
+      "--color-background-application-menu": palette.sidebar,
+      "--color-codex-application-menu": palette.sidebar,
+      "--color-background-control-opaque": palette.control,
+      "--color-background-editor-opaque": palette.surface,
+      "--color-background-mode-toggle-selected": palette.control,
+      "--color-background-user-message": `color-mix(in oklab, ${accent} 8%, white)`,
+      "--color-surface": palette.canvas,
+      "--color-surface-secondary": palette.sidebar,
+      "--color-surface-tertiary": palette.control,
+      "--color-surface-elevated-secondary": palette.surface,
+      "--color-token-bg-primary": palette.canvas,
+      "--color-token-main-surface-primary": palette.canvas,
+      "--codex-base-surface": palette.canvas,
+      "--wb-surface-primary": palette.canvas,
+      "--wb-surface-secondary": palette.sidebar,
+      "--color-background-primary-solid": palette.text,
+      "--color-text-primary-solid": palette.surface,
+      "--color-foreground-application-menu": palette.text,
+      "--color-codex-application-menu-selection": `color-mix(in oklab, ${accent} 9%, transparent)`,
+      "--color-border-application-menu-separator": palette.border,
+      "--color-border": palette.border,
+      "--color-border-light": palette.border,
+      "--color-border-subtle": palette.border,
+      "--color-border-heavy": `color-mix(in srgb, ${palette.text} 22%, transparent)`,
+      "--color-border-strong": `color-mix(in srgb, ${palette.text} 22%, transparent)`,
+      "--color-border-primary-outline": `color-mix(in srgb, ${palette.text} 22%, transparent)`,
+      "--color-text": palette.text,
+      "--color-text-emphasis": palette.text,
+      "--color-text-foreground": palette.text,
+      "--color-text-secondary": palette.muted,
+      "--color-text-foreground-secondary": palette.muted,
+      "--color-text-tertiary": `color-mix(in srgb, ${palette.muted} 78%, transparent)`,
+      "--color-text-foreground-tertiary": `color-mix(in srgb, ${palette.muted} 78%, transparent)`,
+      "--color-text-disabled": `color-mix(in srgb, ${palette.muted} 62%, transparent)`,
+      "--color-text-inverse": palette.surface,
+      "--color-icon-primary": palette.text,
+      "--color-icon-secondary": palette.muted,
+      "--color-icon-tertiary": `color-mix(in srgb, ${palette.muted} 78%, transparent)`,
+      ...accentTokens(accent, "light"),
+    };
+  }
+
   function buildGlobalOverrides() {
     const lines = [];
     const emit = (name, value) => { if (value) lines.push(`  ${name}: ${value} !important;`); };
@@ -388,98 +448,111 @@
     if (effectiveAccent && isHexColor(effectiveAccent)) {
       for (const [name, value] of Object.entries(accentTokens(effectiveAccent, "dark"))) lines.push(`  ${name}: ${value} !important;`);
     }
-    return `html[data-theme-studio-preset="${settings.preset}"] {\n  color-scheme: dark !important;\n${lines.join("\n")}\n}`;
+    return `html[data-theme-studio-preset="${settings.preset}"].electron-dark {\n  color-scheme: dark !important;\n${lines.join("\n")}\n}`;
   }
 
   function buildLightOverrides() {
     const preset = PRESETS[settings.preset];
-    if (preset?.tokens) return "";
     const accent = isHexColor(settings.accent) ? settings.accent : (preset?.accent || "");
     if (!accent || !isHexColor(accent)) return "";
-    const lines = Object.entries(accentTokens(accent, "light"))
+    const tokens = preset?.tokens ? lightPresetTokens(settings.preset, accent) : accentTokens(accent, "light");
+    const lines = Object.entries(tokens)
       .map(([name, value]) => `  ${name}: ${value} !important;`);
-    return `html:not(.electron-dark) {\n${lines.join("\n")}\n}`;
+    const skin = preset?.tokens ? `
+html[data-theme-studio-preset="${settings.preset}"]:not(.electron-dark) body,
+html[data-theme-studio-preset="${settings.preset}"]:not(.electron-dark) #root,
+html[data-theme-studio-preset="${settings.preset}"]:not(.electron-dark) main,
+html[data-theme-studio-preset="${settings.preset}"]:not(.electron-dark) [class*="_ApplicationMenuTopBar_"] {
+  background: var(--color-background-surface) !important;
+  background-color: var(--color-background-surface) !important;
+  color: var(--color-text) !important;
+}
+html[data-theme-studio-preset="${settings.preset}"]:not(.electron-dark) aside.app-shell-left-panel {
+  background: var(--color-background-application-menu) !important;
+  background-color: var(--color-background-application-menu) !important;
+}` : "";
+    return `html:not(.electron-dark) {\n  color-scheme: light !important;\n${lines.join("\n")}\n}${skin}`;
   }
 
   // --------------------------------------------------------------- app skin
   function buildClaudeOverrides() {
     if (settings.preset !== "claude") return "";
     return `
-      html[data-theme-studio-preset="claude"] body {
+      html[data-theme-studio-preset="claude"].electron-dark body {
         background: #121212 !important;
         color: #f5f2e8 !important;
       }
 
-      html[data-theme-studio-preset="claude"] #root,
-      html[data-theme-studio-preset="claude"] main,
-      html[data-theme-studio-preset="claude"] [class*="_ApplicationMenuTopBar_"] {
+      html[data-theme-studio-preset="claude"].electron-dark #root,
+      html[data-theme-studio-preset="claude"].electron-dark main,
+      html[data-theme-studio-preset="claude"].electron-dark [class*="_ApplicationMenuTopBar_"] {
         background: #121212 !important;
         background-color: #121212 !important;
       }
 
-      html[data-theme-studio-preset="claude"] main {
+      html[data-theme-studio-preset="claude"].electron-dark main {
         border-left: 1px solid rgba(245, 242, 232, 0.07) !important;
       }
 
-      html[data-theme-studio-preset="claude"] aside.app-shell-left-panel {
+      html[data-theme-studio-preset="claude"].electron-dark aside.app-shell-left-panel {
         background: #191917 !important;
         background-color: #191917 !important;
         box-shadow: 1px 0 0 rgba(245, 242, 232, 0.07) !important;
       }
 
-      html[data-theme-studio-preset="claude"] #app-shell-sidebar,
-      html[data-theme-studio-preset="claude"] aside .vertical-scroll-fade-mask {
+      html[data-theme-studio-preset="claude"].electron-dark #app-shell-sidebar,
+      html[data-theme-studio-preset="claude"].electron-dark aside .vertical-scroll-fade-mask {
         background: transparent !important;
         background-color: transparent !important;
       }
 
-      html[data-theme-studio-preset="claude"] aside .sidebar-item {
+      html[data-theme-studio-preset="claude"].electron-dark aside .sidebar-item {
         border-radius: 8px !important;
         color: rgba(245, 242, 232, 0.74) !important;
       }
 
-      html[data-theme-studio-preset="claude"] aside .sidebar-item:hover,
-      html[data-theme-studio-preset="claude"] aside .sidebar-item[data-active="true"] {
+      html[data-theme-studio-preset="claude"].electron-dark aside .sidebar-item:hover,
+      html[data-theme-studio-preset="claude"].electron-dark aside .sidebar-item[data-active="true"] {
         background: rgba(245, 242, 232, 0.065) !important;
         background-color: rgba(245, 242, 232, 0.065) !important;
         color: #f5f2e8 !important;
       }
 
-      html[data-theme-studio-preset="claude"] main :is(h1, h2, h3) {
+      html[data-theme-studio-preset="claude"].electron-dark main :is(h1, h2, h3) {
         color: #f5f2e8 !important;
         font-family: var(--font-serif, Georgia, "Times New Roman", serif) !important;
         font-weight: 600 !important;
       }
 
-      html[data-theme-studio-preset="claude"] [class*="_ComposerLayoutRoot_"] {
+      html[data-theme-studio-preset="claude"].electron-dark [class*="_ComposerLayoutRoot_"] {
         background: rgba(38, 36, 32, 0.94) !important;
         background-color: rgba(38, 36, 32, 0.94) !important;
         border-radius: 22px !important;
         box-shadow: inset 0 0 0 1px rgba(245, 242, 232, 0.09), 0 18px 50px rgba(0, 0, 0, 0.32) !important;
       }
 
-      html[data-theme-studio-preset="claude"] button.bg-composer-primary {
+      html[data-theme-studio-preset="claude"].electron-dark button.bg-composer-primary {
         background: #d97757 !important;
         background-color: #d97757 !important;
         color: #121212 !important;
       }
 
-      html[data-theme-studio-preset="claude"] button.bg-composer-primary:hover:not(:disabled) {
+      html[data-theme-studio-preset="claude"].electron-dark button.bg-composer-primary:hover:not(:disabled) {
         background: #e0a18b !important;
         background-color: #e0a18b !important;
       }
 
-      html[data-theme-studio-preset="claude"] ::selection {
+      html[data-theme-studio-preset="claude"].electron-dark ::selection {
         background: rgba(217, 119, 87, 0.32) !important;
         background-color: rgba(217, 119, 87, 0.32) !important;
       }
 
-      html[data-theme-studio-preset="claude"] ::-webkit-scrollbar {
+      html[data-theme-studio-preset="claude"].electron-dark ::-webkit-scrollbar {
         width: 10px;
         height: 10px;
       }
 
-      html[data-theme-studio-preset="claude"] ::-webkit-scrollbar-thumb {
+      html[data-theme-studio-preset="claude"].electron-dark ::-webkit-scrollbar-thumb {
         border: 3px solid transparent;
         border-radius: 999px;
         background: rgba(245, 242, 232, 0.16) content-box;
