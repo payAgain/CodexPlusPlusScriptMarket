@@ -108,8 +108,8 @@
     {
       "id": "codex-token-usage",
       "name": "Codex Token Usage",
-      "description": "显示token消耗统计",
-      "version": "0.1.9",
+      "description": "显示当前会话 Token 消耗统计，修复同一来源的重复 usage 捕获与累计。",
+      "version": "0.2.0",
       "author": "Albert_Luo",
       "tags": [
         "codex",
@@ -120,13 +120,13 @@
       ],
       "homepage": "",
       "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-token-usage.js",
-      "sha256": "b19954a0d463008a37b34b04441ccf1bc7255653c12e1567a8921f6366300040"
+      "sha256": "D3A5BF168703563CCF472E8AE75BBD92BA05F227738989151052B29981823259"
     },
     {
       "id": "codex-daily-token-usage",
       "name": "Codex Daily Token Usage",
-      "description": "每日 Token 统计，近 31 日滚动存储，自动复用已有采集，支持 Model 用量排名、月度热力图、成本估算和分享图",
-      "version": "1.5.0",
+      "description": "当前会话每日 Token 统计，近 31 日滚动存储，支持去重采集、Model 排名、月度热力图、参考成本估算和分享图。",
+      "version": "1.6.0",
       "author": "kts-kris",
       "tags": [
         "codex",
@@ -138,7 +138,7 @@
       ],
       "homepage": "",
       "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-daily-token-usage.js",
-      "sha256": "a3ba5ec791c33fc177d79a6ddf173f39c75617a51f11ed1eb9f9e78199454fa3"
+      "sha256": "67AA0FBD9B00569B36D72C78429A08CB8671B3C879CFEF600CC1B36C548F2181"
     },
     {
       "id": "codex-list-pagebuster",

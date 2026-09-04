@@ -2,7 +2,7 @@
   "use strict";
 
   const SCRIPT_ID = "codex-token-usage";
-  const SCRIPT_VERSION = "0.1.9";
+  const SCRIPT_VERSION = "0.2.0";
   const BADGE_CLASS = "codex-token-usage-badge";
   const STYLE_ID = "codex-token-usage-style";
   const RECENT_LIMIT = 20;
@@ -246,12 +246,37 @@
       .filter((line) => line && line !== "[DONE]");
   }
 
+  function usageDetailsKey(usage) {
+    return [
+      usage?.totalTokens || 0,
+      usage?.inputTokens || 0,
+      usage?.inputTotalTokens || 0,
+      usage?.outputTokens || 0,
+      usage?.outputTotalTokens || 0,
+      usage?.cachedTokens || 0,
+      usage?.cachedReadTokens || 0,
+      usage?.cacheReadTokens || 0,
+      usage?.cacheCreationTokens || 0,
+      usage?.contextLimit || 0,
+    ].join(":");
+  }
+
+  function dedupeUsages(usages) {
+    const seen = new Set();
+    return usages.filter((usage) => {
+      const key = usageDetailsKey(usage);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   function extractUsages(payload) {
     if (typeof payload === "string") {
       try {
         const parsed = JSON.parse(payload);
         const usages = collectUsagesInObject(parsed);
-        if (usages.length) return usages;
+        if (usages.length) return dedupeUsages(usages);
       } catch (_) {
         // Treat non-JSON text as a possible SSE stream below.
       }
@@ -263,9 +288,9 @@
           // Ignore malformed stream fragments.
         }
       }
-      return usages;
+      return dedupeUsages(usages);
     }
-    return collectUsagesInObject(payload);
+    return dedupeUsages(collectUsagesInObject(payload));
   }
 
   function extractUsage(payload) {
@@ -500,7 +525,6 @@
         const callIdentity = strongCallIdentity(call);
         if (identity && callIdentity && identity === callIdentity) return true;
         if (!sameUsageDetails(event, call)) return false;
-        if (event.source === call.source) return false;
         return Math.abs((event.observedAt || 0) - (call.observedAt || 0)) <= CROSS_SOURCE_DEDUPE_WINDOW_MS;
       });
       if (existing) {
@@ -828,7 +852,6 @@
     if (identity && existingIdentity && identity === existingIdentity) return true;
     if (!sameUsageDetails(metric, existing)) return false;
     if (metric.scopeKey && existing.scopeKey && metric.scopeKey !== existing.scopeKey) return false;
-    if (metric.source === existing.source) return false;
     const elapsedDelta = Math.abs((metric.elapsedMs || 0) - (existing.elapsedMs || 0));
     return elapsedDelta <= CROSS_SOURCE_DEDUPE_WINDOW_MS;
   }
@@ -1818,6 +1841,8 @@
   if (window.__CODEX_TOKEN_USAGE_SCRIPT_TEST__) {
     window.__codexTokenUsageScriptTest = {
       extractUsage,
+      extractUsages,
+      dedupeUsages,
       formatBadgeText,
       mergeMetric,
       normalizeUsage,

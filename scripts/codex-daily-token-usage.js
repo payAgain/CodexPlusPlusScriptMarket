@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Codex Daily Token Usage
 // @namespace    codex-plus-plus
-// @version      1.5.0
-// @description  每日 Token 统计，近 31 日滚动存储，优先复用已有采集，必要时内置采集，支持 Model 用量排名、月度热力图、成本估算与分享图。
+// @version      1.6.0
+// @description  当前会话每日 Token 统计，近 31 日滚动存储，支持去重采集、Model 排名、月度热力图、参考成本估算与分享图。
 // @match        app://-/*
 // @run-at       document-start
 // ==/UserScript==
@@ -10,10 +10,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.5.0";
+  const VERSION = "1.6.0";
   const API_KEY = "__codexDailyTokenUsage";
   const SOURCE_API_KEY = "__codexTokenUsage";
-  const STORAGE_KEY = "__codexDailyTokenUsageV1";
+  const STORAGE_KEY = "__codexDailyTokenUsageV2";
   const PRICE_STORAGE_KEY = "__codexDailyTokenUsageModelPricesV1";
   const ROOT_ID = "codex-daily-token-usage";
   const PANEL_ID = "codex-daily-token-usage-panel";
@@ -39,7 +39,7 @@
   const MODEL_BIND_WINDOW_MS = 30 * 60 * 1000;
   const UNKNOWN_MODEL = "Unknown";
   const PRICE_FIELDS = ["input", "cachedInput", "output", "reasoning"];
-  const DEFAULT_OPENAI_PRICE_SOURCE = "OpenAI API Pricing · Standard · USD / 1M tokens";
+  const DEFAULT_OPENAI_PRICE_SOURCE = "内置参考价 · USD / 1M tokens · 非账单";
   const DEFAULT_OPENAI_MODEL_PRICES = Object.freeze({
     "gpt-5.6-sol": { input: 5, cachedInput: 0.5, output: 30 },
     "gpt-5.6-terra": { input: 2.5, cachedInput: 0.25, output: 15 },
@@ -608,13 +608,13 @@
   }
 
   function createEmptyState() {
-    return { version: 1, days: {} };
+    return { version: 2, days: {} };
   }
 
   function loadState() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (parsed?.version === 1 && parsed.days && typeof parsed.days === "object") {
+      if (parsed?.version === 2 && parsed.days && typeof parsed.days === "object") {
         return parsed;
       }
     } catch {
@@ -785,7 +785,7 @@
     const number = Number(value);
     if (!Number.isFinite(number) || number <= 0) return "$0.0000";
     const digits = number >= 1 ? 2 : number >= 0.01 ? 4 : 6;
-    return `$${number.toFixed(digits)}`;
+    return `≈$${number.toFixed(digits)}`;
   }
 
   function formatPriceInputValue(value) {
@@ -1376,7 +1376,7 @@
       calls,
       turns,
       activeDays,
-      dailyAverage: activeDays > 0 ? total / activeDays : 0,
+      dailyAverage: total / trend.days,
     };
   }
 
@@ -3983,7 +3983,7 @@
     const fields = [
       ["sevenDay", sevenDay.total, `近 7 天共 ${formatExact(sevenDay.total)} Token`],
       ["thirtyDay", thirtyDay.total, `近 30 天共 ${formatExact(thirtyDay.total)} Token`],
-      ["dailyAverage", thirtyDay.dailyAverage, `${thirtyDay.activeDays} 个活跃日平均`],
+      ["dailyAverage", thirtyDay.dailyAverage, `近 ${thirtyDay.days} 个自然日平均，活跃 ${thirtyDay.activeDays} 天`],
       ["turns", thirtyDay.turns, `近 30 天共 ${formatExact(thirtyDay.turns)} 个 turn`],
     ];
     for (const [field, value, title] of fields) {
@@ -4569,10 +4569,10 @@
 
   function sourceStatusText(snapshot) {
     if (sourceMode === "external") {
-      return `${snapshot.turns} 个 turn · 复用 Codex Token Usage`;
+      return `${snapshot.turns} 个 turn · 当前会话采集，非账户账单`;
     }
     if (sourceMode === "standalone") {
-      return `${snapshot.turns} 个 turn · 本机累计 · 独立采集`;
+      return `${snapshot.turns} 个 turn · 本机当前会话累计，非账户账单`;
     }
     return externalSourceAvailable() ? "等待 Codex Token Usage 数据" : "等待数据源，必要时自动采集";
   }
