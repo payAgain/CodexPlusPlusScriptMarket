@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Codex Theme Studio
 // @namespace    codex-plus-plus
-// @version      1.2.1
+// @version      1.2.2
 // @description  Codex 桌面端主题美化：官方 CSS 变量驱动的配色预设（Claude 陶土/墨蓝/曜石/青屿）、内置字体、自动适配深浅色的自定义强调色、圆角与超椭圆圆角、聊天字号，随时一键回到官方默认。
 // @match        app://-/*
 // @run-at       document-start
@@ -13,7 +13,7 @@
   if (window.top !== window.self) return;
 
   const SCRIPT_ID = "codex-theme-studio";
-  const SCRIPT_VERSION = "1.2.1";
+  const SCRIPT_VERSION = "1.2.2";
   const API_KEY = "__codexThemeStudio";
   const STYLE_ID = "codex-theme-studio-style";
   const STORAGE_KEY = "__codexThemeStudioSettingsV1";
@@ -374,7 +374,7 @@
     return lines.length ? `:root {\n${lines.join("\n")}\n}` : "";
   }
 
-  function buildDarkOverrides() {
+  function buildThemeOverrides() {
     const preset = PRESETS[settings.preset];
     const accent = isHexColor(settings.accent) ? settings.accent : "";
     if (!preset || !preset.tokens) {
@@ -388,11 +388,12 @@
     if (effectiveAccent && isHexColor(effectiveAccent)) {
       for (const [name, value] of Object.entries(accentTokens(effectiveAccent, "dark"))) lines.push(`  ${name}: ${value} !important;`);
     }
-    return `html.electron-dark {\n${lines.join("\n")}\n}`;
+    return `html[data-theme-studio-preset="${settings.preset}"] {\n  color-scheme: dark !important;\n${lines.join("\n")}\n}`;
   }
 
   function buildLightOverrides() {
     const preset = PRESETS[settings.preset];
+    if (preset?.tokens) return "";
     const accent = isHexColor(settings.accent) ? settings.accent : (preset?.accent || "");
     if (!accent || !isHexColor(accent)) return "";
     const lines = Object.entries(accentTokens(accent, "light"))
@@ -404,81 +405,81 @@
   function buildClaudeOverrides() {
     if (settings.preset !== "claude") return "";
     return `
-      html[data-theme-studio="claude"].electron-dark body {
+      html[data-theme-studio-preset="claude"] body {
         background: #121212 !important;
         color: #f5f2e8 !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark #root,
-      html[data-theme-studio="claude"].electron-dark main,
-      html[data-theme-studio="claude"].electron-dark [class*="_ApplicationMenuTopBar_"] {
+      html[data-theme-studio-preset="claude"] #root,
+      html[data-theme-studio-preset="claude"] main,
+      html[data-theme-studio-preset="claude"] [class*="_ApplicationMenuTopBar_"] {
         background: #121212 !important;
         background-color: #121212 !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark main {
+      html[data-theme-studio-preset="claude"] main {
         border-left: 1px solid rgba(245, 242, 232, 0.07) !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark aside.app-shell-left-panel {
+      html[data-theme-studio-preset="claude"] aside.app-shell-left-panel {
         background: #191917 !important;
         background-color: #191917 !important;
         box-shadow: 1px 0 0 rgba(245, 242, 232, 0.07) !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark #app-shell-sidebar,
-      html[data-theme-studio="claude"].electron-dark aside .vertical-scroll-fade-mask {
+      html[data-theme-studio-preset="claude"] #app-shell-sidebar,
+      html[data-theme-studio-preset="claude"] aside .vertical-scroll-fade-mask {
         background: transparent !important;
         background-color: transparent !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark aside .sidebar-item {
+      html[data-theme-studio-preset="claude"] aside .sidebar-item {
         border-radius: 8px !important;
         color: rgba(245, 242, 232, 0.74) !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark aside .sidebar-item:hover,
-      html[data-theme-studio="claude"].electron-dark aside .sidebar-item[data-active="true"] {
+      html[data-theme-studio-preset="claude"] aside .sidebar-item:hover,
+      html[data-theme-studio-preset="claude"] aside .sidebar-item[data-active="true"] {
         background: rgba(245, 242, 232, 0.065) !important;
         background-color: rgba(245, 242, 232, 0.065) !important;
         color: #f5f2e8 !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark main :is(h1, h2, h3) {
+      html[data-theme-studio-preset="claude"] main :is(h1, h2, h3) {
         color: #f5f2e8 !important;
         font-family: var(--font-serif, Georgia, "Times New Roman", serif) !important;
         font-weight: 600 !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark [class*="_ComposerLayoutRoot_"] {
+      html[data-theme-studio-preset="claude"] [class*="_ComposerLayoutRoot_"] {
         background: rgba(38, 36, 32, 0.94) !important;
         background-color: rgba(38, 36, 32, 0.94) !important;
         border-radius: 22px !important;
         box-shadow: inset 0 0 0 1px rgba(245, 242, 232, 0.09), 0 18px 50px rgba(0, 0, 0, 0.32) !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark button.bg-composer-primary {
+      html[data-theme-studio-preset="claude"] button.bg-composer-primary {
         background: #d97757 !important;
         background-color: #d97757 !important;
         color: #121212 !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark button.bg-composer-primary:hover:not(:disabled) {
+      html[data-theme-studio-preset="claude"] button.bg-composer-primary:hover:not(:disabled) {
         background: #e0a18b !important;
         background-color: #e0a18b !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark ::selection {
+      html[data-theme-studio-preset="claude"] ::selection {
         background: rgba(217, 119, 87, 0.32) !important;
         background-color: rgba(217, 119, 87, 0.32) !important;
       }
 
-      html[data-theme-studio="claude"].electron-dark ::-webkit-scrollbar {
+      html[data-theme-studio-preset="claude"] ::-webkit-scrollbar {
         width: 10px;
         height: 10px;
       }
 
-      html[data-theme-studio="claude"].electron-dark ::-webkit-scrollbar-thumb {
+      html[data-theme-studio-preset="claude"] ::-webkit-scrollbar-thumb {
         border: 3px solid transparent;
         border-radius: 999px;
         background: rgba(245, 242, 232, 0.16) content-box;
@@ -556,9 +557,9 @@
       styleEl.id = STYLE_ID;
       (document.head || document.documentElement).appendChild(styleEl);
     }
-    const parts = [buildFontFaceCss(), buildGlobalOverrides(), buildDarkOverrides(), buildLightOverrides(), buildClaudeOverrides(), buildPanelCss()];
-    if (settings.preset === "claude") document.documentElement.dataset.themeStudio = "claude";
-    else delete document.documentElement.dataset.themeStudio;
+    const parts = [buildFontFaceCss(), buildGlobalOverrides(), buildThemeOverrides(), buildLightOverrides(), buildClaudeOverrides(), buildPanelCss()];
+    if (PRESETS[settings.preset]?.tokens) document.documentElement.dataset.themeStudioPreset = settings.preset;
+    else delete document.documentElement.dataset.themeStudioPreset;
     styleEl.textContent = parts.filter(Boolean).join("\n");
   }
 
@@ -802,6 +803,7 @@
       gearButton?.remove();
       panelEl?.remove();
       styleEl?.remove();
+      delete document.documentElement.dataset.themeStudioPreset;
       gearButton = null;
       panelEl = null;
       styleEl = null;
