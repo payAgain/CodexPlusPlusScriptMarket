@@ -2,7 +2,7 @@
   "use strict";
 
   const SCRIPT_ID = "codex-token-usage";
-  const SCRIPT_VERSION = "0.3.0";
+  const SCRIPT_VERSION = "0.3.1";
   const BADGE_CLASS = "codex-token-usage-badge";
   const STYLE_ID = "codex-token-usage-style";
   const RECENT_LIMIT = 20;
@@ -344,9 +344,9 @@
   function formatCacheDetails(usage, conversationUsage) {
     const currentCache = usage.cachedReadTokens || usage.cachedTokens || usage.cacheReadTokens || 0;
     const details = [];
-    if (currentCache) details.push(`本轮缓存读 ${formatNumber(currentCache)}`);
-    const sessionInput = conversationUsage?.inputTokens || usage.inputTotalTokens || usage.inputTokens || 0;
     const sessionCache = conversationUsage?.cachedTokens ?? currentCache;
+    if (sessionCache) details.push(`会话缓存读 ${formatNumber(sessionCache)}`);
+    const sessionInput = conversationUsage?.inputTokens || usage.inputTotalTokens || usage.inputTokens || 0;
     if (sessionInput) {
       const ratio = Math.min(100, Math.max(0, (sessionCache / sessionInput) * 100));
       details.push(`会话缓存率 ${ratio.toFixed(1)}%`);
@@ -360,7 +360,7 @@
     const usage = metric?.usage || {};
     const requestTotal = usage.requestTotalTokens || usage.totalTokens || 0;
     const estimatedLabel = usage.totalEstimated ? "(估算)" : "";
-    const parts = [`本轮调用合计 ${formatNumber(requestTotal)}${estimatedLabel}`];
+    const parts = [`会话调用合计 ${formatNumber(requestTotal)}${estimatedLabel}`];
     if (usageHasBreakdown(usage)) {
       parts.push(
         `输入 ${formatNumber(usage.inputTotalTokens || usage.inputTokens)}`,
@@ -690,6 +690,42 @@
     return turns.length ? turns[turns.length - 1] : null;
   }
 
+  function aggregateSessionMetrics(turns) {
+    if (!turns.length) return null;
+    const latest = turns[turns.length - 1];
+    const usage = turns.reduce((total, metric) => {
+      const item = metric?.usage || {};
+      total.inputTokens += item.inputTokens || 0;
+      total.inputTotalTokens += item.inputTotalTokens || item.inputTokens || 0;
+      total.outputTokens += item.outputTokens || 0;
+      total.outputTotalTokens += item.outputTotalTokens || item.outputTokens || 0;
+      total.totalTokens += item.totalTokens || item.inputTokens + item.outputTokens || 0;
+      total.requestTotalTokens += item.requestTotalTokens || item.totalTokens || item.inputTokens + item.outputTokens || 0;
+      total.cachedTokens += item.cachedTokens || 0;
+      total.cachedReadTokens += item.cachedReadTokens || item.cacheReadTokens || item.cachedTokens || 0;
+      total.cacheReadTokens += item.cacheReadTokens || 0;
+      total.cacheCreationTokens += item.cacheCreationTokens || 0;
+      total.totalEstimated = total.totalEstimated || !!item.totalEstimated;
+      return total;
+    }, {
+      inputTokens: 0, inputTotalTokens: 0, outputTokens: 0, outputTotalTokens: 0,
+      totalTokens: 0, requestTotalTokens: 0, cachedTokens: 0, cachedReadTokens: 0,
+      cacheReadTokens: 0, cacheCreationTokens: 0, totalEstimated: false,
+    });
+    usage.hasBreakdown = turns.some((metric) => usageHasBreakdown(metric?.usage));
+    usage.contextUsed = latest?.usage?.contextUsed || latest?.usage?.totalTokens || usage.totalTokens;
+    usage.contextLimit = latest?.usage?.contextLimit || 0;
+    return {
+      ...latest,
+      usage,
+      elapsedMs: turns.reduce((sum, metric) => sum + (metric?.elapsedMs || 0), 0),
+      calls: turns.flatMap((metric) => metric?.calls || []),
+      callCount: turns.reduce((sum, metric) => sum + (metric?.callCount || 0), 0),
+      source: "session-aggregate",
+      turnId: latest?.turnId || "",
+    };
+  }
+
   function adoptLedgerScopeIdentity(projectId, conversationId) {
     const normalizedProjectId = normalizeProjectId(projectId);
     const normalizedConversationId = normalizeConversationId(conversationId);
@@ -713,10 +749,10 @@
     const activeScope = currentScopeKey();
     let completedMetric = null;
     if (activeScope) {
-      completedMetric = deriveLatestMetricFromLedger(activeScope, active) || state.byScope[activeScope] || null;
+      completedMetric = aggregateSessionMetrics(deriveTurnsFromLedger(activeScope, active)) || state.byScope[activeScope] || null;
     } else {
       completedMetric =
-        deriveLatestMetricFromLedger("", active)
+        aggregateSessionMetrics(deriveTurnsFromLedger("", active))
         || (active && state.byConversation[active])
         || (conversationMatchesActive(state.lastMetric) ? state.lastMetric : null);
     }

@@ -109,7 +109,7 @@
       "id": "codex-token-usage",
       "name": "Codex Token Usage",
       "description": "显示当前会话 Token 消耗统计，支持会话级缓存率、稳定浮动定位、准确结束计时与重复 usage 去重。",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "author": "Albert_Luo",
       "tags": [
         "codex",
@@ -120,7 +120,7 @@
       ],
       "homepage": "",
       "script_url": "https://raw.githubusercontent.com/payAgain/CodexPlusPlusScriptMarket/main/scripts/codex-token-usage.js",
-      "sha256": "4DFE13591BF1636F70490CB90C55825233731AD6B12CBF6D288B0A6B9B560851"
+      "sha256": "68CBBC9CA38BCEFF719828B83B739E6E0D8B71214228076D44C25071E070E6A6"
     },
     {
       "id": "codex-daily-token-usage",

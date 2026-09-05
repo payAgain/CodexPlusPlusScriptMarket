@@ -28,8 +28,9 @@ function loadHelpers() {
       sourceBetween("function isTurnRequestUrl", "function requestUrl"),
       sourceBetween("function payloadSignalsCompletion", "function normalizeConversationId"),
       sourceBetween("function usageHasBreakdown", "function formatCacheDetails"),
+      sourceBetween("function aggregateSessionMetrics", "function adoptLedgerScopeIdentity"),
       sourceBetween("function sameUsageDetails", "function mergeUsage"),
-      "this.helpers = { dedupeUsages, shouldDedupeCall, summarizeConversationUsage, isTurnRequestUrl, payloadSignalsCompletion };",
+      "this.helpers = { dedupeUsages, shouldDedupeCall, summarizeConversationUsage, aggregateSessionMetrics, isTurnRequestUrl, payloadSignalsCompletion };",
     ].join("\n"),
     context,
   );
@@ -60,6 +61,19 @@ test("conversation cache summary includes every captured turn", () => {
   assert.equal(summary.inputTokens, 1500);
   assert.equal(summary.cachedTokens, 500);
   assert.equal(summary.turns, 2);
+});
+
+test("session display metric aggregates token totals across turns", () => {
+  const { aggregateSessionMetrics } = loadHelpers();
+  const result = aggregateSessionMetrics([
+    { usage: { hasBreakdown: true, inputTokens: 1000, outputTokens: 100, totalTokens: 1100, cachedReadTokens: 500 }, elapsedMs: 1200, callCount: 1, calls: [{}] },
+    { usage: { hasBreakdown: true, inputTokens: 2000, outputTokens: 200, totalTokens: 2200, cachedReadTokens: 1000 }, elapsedMs: 2300, callCount: 1, calls: [{}] },
+  ]);
+  assert.equal(result.source, "session-aggregate");
+  assert.equal(result.usage.totalTokens, 3300);
+  assert.equal(result.usage.cachedReadTokens, 1500);
+  assert.equal(result.callCount, 2);
+  assert.equal(result.elapsedMs, 3500);
 });
 
 test("background Codex API requests do not start a turn timer", () => {
